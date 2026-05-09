@@ -1,2 +1,5 @@
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
+
+# Keras Tuner results
+tuner_results/
