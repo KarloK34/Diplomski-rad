@@ -1,0 +1,13 @@
+session,orientation,true,12ch_correct,6ch_correct,8ch_wf_correct,n_windows
+dws,natural,dws,0.0,0.0,1.0,4
+ups,natural,ups,1.0,1.0,1.0,5
+hod,natural,wlk,0.2222222222222222,0.0,0.0,9
+hod2,natural,wlk,1.0,1.0,0.6666666666666666,3
+hodanje,natural,wlk,0.38461538461538464,0.23076923076923078,0.46153846153846156,13
+hodanje2,natural,wlk,0.0,0.0,0.0,13
+hodanje3,natural,wlk,0.14285714285714285,0.6571428571428571,0.5714285714285714,35
+jog,natural,jog,0.0,0.0,1.0,7
+ED,screen-toward-thigh + upside-down,wlk,0.5757575757575758,0.9393939393939394,0.7878787878787878,33
+EG,screen-toward-thigh + upright,wlk,1.0,0.0,0.32558139534883723,43
+KD,camera-toward-thigh + upside-down,wlk,0.0,0.0,0.4722222222222222,36
+KG,camera-toward-thigh + upright,wlk,0.7692307692307693,0.8205128205128205,0.3333333333333333,39

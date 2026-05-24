@@ -1,0 +1,24 @@
+{
+  "channel_order": [
+    "acc_mag",
+    "gyro_mag",
+    "a_v",
+    "a_h",
+    "jerk_v",
+    "pitch_unwrapped"
+  ],
+  "static_channel_indices": [
+    5
+  ],
+  "dynamic_channel_indices": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "window_size": 128,
+  "step": 64,
+  "fs_hz": 50.0,
+  "feature_module": "utils.orientation_invariant_features.compute_features"
+}

@@ -1,0 +1,18 @@
+{
+  "channel_order": [
+    "acc_mag",
+    "gyro_mag",
+    "a_v",
+    "a_h",
+    "jerk_v",
+    "a_f",
+    "a_s",
+    "gyro_v"
+  ],
+  "window_size": 128,
+  "step": 64,
+  "fs_hz": 50.0,
+  "smooth_seconds": 5.0,
+  "feature_module": "utils.orientation_invariant_features.compute_walking_frame_features",
+  "all_dynamic_zscore": true
+}

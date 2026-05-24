@@ -1,0 +1,3 @@
+,window_acc,session_acc
+CNN-1D baseline (12ch raw),0.4666666666666667,0.4166666666666667
+CNN-1D baseline (6ch orientation-invariant),0.4041666666666667,0.4166666666666667
