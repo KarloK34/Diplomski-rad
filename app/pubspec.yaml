@@ -1,0 +1,38 @@
+name: gait_sense
+description: "On-device gait analysis and classification app."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  cupertino_icons: ^1.0.8
+  equatable: ^2.0.8
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^9.1.1
+  flutter_foreground_task: ^9.2.2
+  path_provider: ^2.1.5
+  sensors_plus: ^7.0.0
+  tflite_flutter: ^0.12.1
+
+# Dependency notes:
+#  - sensors_plus 7.x exposes GravitySensorEvent, UserAccelerometerEvent and
+#    GyroscopeEvent — sufficient for the v2 feature pipeline (attitude unused).
+#  - tflite_flutter loads cnn_final.tflite ([1,128,8] -> [1,6]) on-device.
+#  - flutter_bloc + equatable: project default for state management.
+#  - flutter_foreground_task keeps the 50 Hz sampler alive with the screen off.
+#  - path_provider resolves the documents directory for session-log JSON export.
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^10.2.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/cnn_final.tflite
+    - assets/cnn_final.preproc.json
