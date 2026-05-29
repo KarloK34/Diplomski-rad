@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gait_sense/blocs/sensor_stream/sensor_stream_bloc.dart';
+import 'package:gait_sense/screens/debug_sensors_screen.dart';
+import 'package:gait_sense/services/sensor_service.dart';
 
 /// Root MaterialApp.
 class GaitSenseApp extends StatelessWidget {
@@ -13,26 +17,11 @@ class GaitSenseApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const _PlaceholderHome(),
-    );
-  }
-}
-
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Gait Sense')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Home screen placeholder',
-            textAlign: TextAlign.center,
-          ),
-        ),
+      // The debug sensor readout is the temporary home while the live HAR
+      // screen does not exist yet.
+      home: BlocProvider(
+        create: (_) => SensorStreamBloc(sensorService: SensorService()),
+        child: const DebugSensorsScreen(),
       ),
     );
   }

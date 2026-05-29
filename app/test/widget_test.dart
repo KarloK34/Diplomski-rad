@@ -2,8 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/app.dart';
 
 void main() {
-  testWidgets('Gait Sense app renders', (tester) async {
+  testWidgets('app renders the debug sensors screen', (tester) async {
     await tester.pumpWidget(const GaitSenseApp());
-    expect(find.text('Gait Sense'), findsOneWidget);
+    expect(find.text('Debug senzori'), findsOneWidget);
+    expect(find.text('Nema uzoraka.'), findsOneWidget);
   });
 }
