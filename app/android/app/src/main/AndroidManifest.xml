@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Samsung One UI applies aggressive background process management, so the
+         service requests a Doze/battery-optimization exemption at runtime to keep
+         sampling through a screen-off session. Required by
+         FlutterForegroundTask.requestIgnoreBatteryOptimization(). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:label="gait_sense"
@@ -35,6 +40,15 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- flutter_foreground_task hosts the recording pipeline in its own
+             isolate. Android 14+ requires the foregroundServiceType to be
+             declared here; "dataSync" matches FOREGROUND_SERVICE_DATA_SYNC.
+             The service class name is fixed by the plugin — do not rename. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
