@@ -15,6 +15,20 @@ class ActivityPrediction extends Equatable {
     required this.inferenceLatencyMs,
   });
 
+  /// Rebuilds a prediction from its [toJson] map. Also the decoder for the
+  /// payload shipped across the foreground-service isolate boundary, since
+  /// `sendDataToMain` only transports JSON-able values.
+  factory ActivityPrediction.fromJson(Map<String, dynamic> json) {
+    return ActivityPrediction(
+      label: json['label'] as String,
+      probabilities: (json['probabilities'] as List)
+          .map((v) => (v as num).toDouble())
+          .toList(),
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      inferenceLatencyMs: (json['inferenceLatencyMs'] as num).toInt(),
+    );
+  }
+
   /// Argmax class label (e.g. `wlk`, `sit`).
   final String label;
 
@@ -26,6 +40,17 @@ class ActivityPrediction extends Equatable {
 
   /// Measured interpreter latency for this window, in milliseconds.
   final int inferenceLatencyMs;
+
+  /// Serializes to a JSON-able map. [timestamp] uses ISO-8601 so it survives
+  /// a round-trip through both the session-log file and the isolate port.
+  Map<String, dynamic> toJson() {
+    return {
+      'label': label,
+      'probabilities': probabilities,
+      'timestamp': timestamp.toIso8601String(),
+      'inferenceLatencyMs': inferenceLatencyMs,
+    };
+  }
 
   @override
   List<Object?> get props => [
