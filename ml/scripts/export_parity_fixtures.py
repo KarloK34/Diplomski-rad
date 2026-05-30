@@ -55,6 +55,16 @@ RAW_INPUT_COLS = [
 _REPO_ROOT = os.path.abspath(os.path.join(_ML_DIR, os.pardir))
 _DATA_DIR = os.path.join(_REPO_ROOT, "data", "A_DeviceMotion_data")
 _OUT_DIR = os.path.join(_REPO_ROOT, "app", "test", "fixtures", "parity")
+_TFLITE_MODEL = os.path.join(_REPO_ROOT, "models", "cnn_final.tflite")
+
+# Truncation for the on-device inference fixtures. The full-session fixtures are
+# 4-8 MB each (they store every window); an on-device test must bundle its data
+# as an app asset, so the inference fixtures are truncated to a short prefix.
+# Parity holds regardless of length because Dart and Python see the *same* input
+# block -- the comparison is Dart==Python, not a match to a "complete" session.
+# 768 samples (15.36 s @ 50 Hz) -> (768-128)//64 + 1 = 11 windows per session,
+# enough to exercise both branches and give a meaningful per-window agreement.
+_INFER_MAX_SAMPLES = 768
 
 
 def sliding_windows(
@@ -115,6 +125,71 @@ def build_fixture(act: str, trial: int, sub: int) -> dict:
     }
 
 
+def _tflite_probabilities(windows_norm: np.ndarray) -> np.ndarray:
+    """Runs cnn_final.tflite over normalized windows, returning the [n, 6]
+    softmax outputs. Mirrors the interpreter call in notebook 14 exactly
+    (single FP32 input per window, ``get_tensor`` of the output), so the Dart
+    on-device interpreter is validated against the same numbers the model was
+    evaluated with."""
+    import tensorflow as tf  # local import: full-session fixtures don't need TF
+
+    interp = tf.lite.Interpreter(model_path=_TFLITE_MODEL)
+    interp.allocate_tensors()
+    in_idx = interp.get_input_details()[0]["index"]
+    out_idx = interp.get_output_details()[0]["index"]
+    probs = np.zeros((len(windows_norm), len(ACT_LABELS)), dtype=np.float32)
+    for i, w in enumerate(windows_norm):
+        interp.set_tensor(in_idx, w[None].astype(np.float32))
+        interp.invoke()
+        probs[i] = interp.get_tensor(out_idx)[0]
+    return probs
+
+
+def build_inference_fixture(act: str, trial: int, sub: int) -> dict:
+    """Small fixture for the Dart on-device inference parity test: a truncated
+    raw-input prefix plus the expected normalized windows AND the expected
+    TFLite probabilities/labels. The device test re-runs the Dart pipeline +
+    interpreter on this input and must match both."""
+    csv_path = os.path.join(_DATA_DIR, f"{act}_{trial}", f"sub_{sub}.csv")
+    raw = (
+        pd.read_csv(csv_path)
+        .drop(columns=["Unnamed: 0"])
+        .iloc[:_INFER_MAX_SAMPLES]
+        .reset_index(drop=True)
+    )
+
+    df = raw.copy()
+    df["id"] = sub - 1
+    df["act"] = ACT_LABELS.index(act)
+    df["trial"] = trial
+
+    feats = compute_walking_frame_features_v2(df, fs_hz=50.0, smooth_seconds=5.0)
+    windows = sliding_windows(feats, WALKING_FRAME_V2_COLS)
+    windows_norm = normalize_dyn(windows)
+    probs = _tflite_probabilities(windows_norm)
+    pred = probs.argmax(axis=1)
+
+    return {
+        "meta": {
+            "source": f"{act}_{trial}/sub_{sub}.csv",
+            "input_channel_order": RAW_INPUT_COLS,
+            "output_channel_order": WALKING_FRAME_V2_COLS,
+            "class_labels": ACT_LABELS,
+            "window_size": 128,
+            "step": 64,
+            "fs_hz": 50.0,
+            "smooth_seconds": 5.0,
+            "truncated_to_samples": int(len(raw)),
+            "n_windows": int(windows_norm.shape[0]),
+        },
+        "input": raw[RAW_INPUT_COLS].to_numpy().tolist(),
+        "windows": windows_norm.astype(float).tolist(),
+        "probabilities": probs.astype(float).tolist(),
+        "pred_labels": pred.astype(int).tolist(),
+        "pred_label_names": [ACT_LABELS[i] for i in pred],
+    }
+
+
 def main() -> None:
     os.makedirs(_OUT_DIR, exist_ok=True)
     targets = [
@@ -130,6 +205,20 @@ def main() -> None:
         print(
             f"wrote {out_path}  "
             f"({meta['n_samples']} samples -> {meta['n_windows']} windows)"
+        )
+
+    # On-device inference fixtures (truncated; carry expected TFLite outputs).
+    for act, trial, sub in targets:
+        fixture = build_inference_fixture(act, trial, sub)
+        out_path = os.path.join(_OUT_DIR, f"{act}_{trial}_sub_{sub}.infer.json")
+        with open(out_path, "w", encoding="utf-8") as fh:
+            json.dump(fixture, fh)
+        meta = fixture["meta"]
+        labels = "".join(str(x) for x in fixture["pred_labels"])
+        print(
+            f"wrote {out_path}  "
+            f"({meta['truncated_to_samples']} samples -> {meta['n_windows']} "
+            f"windows; pred argmax per window: {labels})"
         )
 
 

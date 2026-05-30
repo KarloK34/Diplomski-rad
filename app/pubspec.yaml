@@ -28,6 +28,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   very_good_analysis: ^10.2.0
 
 flutter:
@@ -36,3 +38,9 @@ flutter:
   assets:
     - assets/cnn_final.tflite
     - assets/cnn_final.preproc.json
+    # Test-only: small (~310 KB) truncated parity fixtures, bundled so the
+    # on-device inference parity test (integration_test/) can read the expected
+    # Python TFLite outputs via rootBundle. 
+    # TODO: Strip these before any release build.
+    - test/fixtures/parity/wlk_7_sub_5.infer.json
+    - test/fixtures/parity/sit_5_sub_5.infer.json
