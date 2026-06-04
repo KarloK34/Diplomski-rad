@@ -1,0 +1,153 @@
+import 'dart:async';
+
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gait_sense/blocs/ui/ui_event.dart';
+import 'package:gait_sense/blocs/ui/ui_state.dart';
+import 'package:gait_sense/models/activity_prediction.dart';
+import 'package:gait_sense/models/har_model_info.dart';
+import 'package:gait_sense/services/recording_controller.dart';
+import 'package:gait_sense/services/session_log_repository.dart';
+
+/// Size of the rolling window over which inference-latency percentiles are
+/// computed: the most recent [_latencyWindow] predictions (~77 s, at one
+/// window per 1.28 s — stride 64 at 50 Hz). A bounded window reports recent
+/// conditions rather than a session-cumulative average that hides regressions.
+const int _latencyWindow = 60;
+
+/// Orchestrates a recording session on the UI isolate.
+///
+/// Sits on the UI-isolate side of the foreground-service boundary (hence the
+/// name): it drives the [RecordingController] lifecycle, mirrors every incoming
+/// prediction into the [SessionLogRepository], and derives the live readouts
+/// (elapsed time, prediction count, rolling latency percentiles) the screen
+/// renders. The sensing/inference pipeline itself runs in the service isolate.
+class UiBloc extends Bloc<UiEvent, UiState> {
+  /// Creates the bloc around its injected dependencies. The clock and tick
+  /// interval are injectable so the elapsed-time logic is deterministic in
+  /// tests.
+  UiBloc({
+    required this._controller,
+    required this._repository,
+    this._modelInfo = harModelInfo,
+    this._now = DateTime.now,
+    this._tickInterval = const Duration(seconds: 1),
+  }) : super(const UiState.initial()) {
+    on<UiRecordingStarted>(_onStarted);
+    on<UiRecordingStopped>(_onStopped);
+    on<UiReset>(_onReset);
+    on<UiPredictionReceived>(_onPredictionReceived);
+    on<UiTicked>(_onTicked);
+  }
+
+  final RecordingController _controller;
+  final SessionLogRepository _repository;
+  final Map<String, dynamic> _modelInfo;
+  final DateTime Function() _now;
+  final Duration _tickInterval;
+
+  StreamSubscription<ActivityPrediction>? _subscription;
+  Timer? _ticker;
+  DateTime _startedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // Recent inference latencies, capped at _latencyWindow, for the rolling
+  // p50/p95 readout. Kept off the state object: only the two computed
+  // percentiles are surfaced to the UI.
+  final List<int> _latencies = [];
+
+  Future<void> _onStarted(
+    UiRecordingStarted event,
+    Emitter<UiState> emit,
+  ) async {
+    if (state.status == RecordingStatus.recording) return;
+    _startedAt = _now();
+    _latencies.clear();
+
+    await _controller.requestPermissions();
+    await _controller.start();
+    _repository.startSession(startedAt: _startedAt, modelInfo: _modelInfo);
+
+    await _subscription?.cancel();
+    _subscription = _controller.predictions.listen(
+      (prediction) => add(UiPredictionReceived(prediction)),
+    );
+    _ticker?.cancel();
+    _ticker = Timer.periodic(_tickInterval, (_) => add(const UiTicked()));
+
+    emit(const UiState.initial().copyWith(status: RecordingStatus.recording));
+  }
+
+  Future<void> _onStopped(
+    UiRecordingStopped event,
+    Emitter<UiState> emit,
+  ) async {
+    if (state.status != RecordingStatus.recording) return;
+    await _subscription?.cancel();
+    _subscription = null;
+    _ticker?.cancel();
+    _ticker = null;
+
+    emit(state.copyWith(status: RecordingStatus.saving));
+    await _controller.stop();
+    await _repository.finishAndSave(stoppedAt: _now());
+    emit(
+      state.copyWith(
+        status: RecordingStatus.saved,
+        finishedSession: _repository.lastSession,
+      ),
+    );
+  }
+
+  void _onReset(UiReset event, Emitter<UiState> emit) {
+    // Ignore a reset mid-recording: a running session must be stopped first.
+    if (state.status == RecordingStatus.recording) return;
+    emit(const UiState.initial());
+  }
+
+  void _onPredictionReceived(
+    UiPredictionReceived event,
+    Emitter<UiState> emit,
+  ) {
+    if (state.status != RecordingStatus.recording) return;
+    _repository.append(event.prediction);
+
+    _latencies.add(event.prediction.inferenceLatencyMs);
+    if (_latencies.length > _latencyWindow) {
+      _latencies.removeRange(0, _latencies.length - _latencyWindow);
+    }
+    final sorted = List<int>.of(_latencies)..sort();
+
+    emit(
+      state.copyWith(
+        predictionCount: state.predictionCount + 1,
+        latest: event.prediction,
+        latencyP50Ms: _percentile(sorted, 50),
+        latencyP95Ms: _percentile(sorted, 95),
+      ),
+    );
+  }
+
+  void _onTicked(UiTicked event, Emitter<UiState> emit) {
+    if (state.status != RecordingStatus.recording) return;
+    emit(state.copyWith(elapsed: _now().difference(_startedAt)));
+  }
+
+  /// Nearest-rank percentile — the inverse-CDF estimator (Definition 1 in
+  /// Hyndman & Fan, 1996, https://doi.org/10.2307/2684934). No interpolation
+  /// between samples is used: latency is reported in integer milliseconds, so
+  /// an interpolated quantile would invent values between measured points.
+  static int _percentile(List<int> sortedAscending, double p) {
+    if (sortedAscending.isEmpty) return 0;
+    final rank = (p / 100 * sortedAscending.length).ceil();
+    var index = rank - 1;
+    if (index < 0) index = 0;
+    if (index > sortedAscending.length - 1) index = sortedAscending.length - 1;
+    return sortedAscending[index];
+  }
+
+  @override
+  Future<void> close() async {
+    await _subscription?.cancel();
+    _ticker?.cancel();
+    return super.close();
+  }
+}
