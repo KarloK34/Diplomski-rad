@@ -15,6 +15,7 @@ dependencies:
   flutter_foreground_task: ^9.2.2
   path_provider: ^2.1.5
   sensors_plus: ^7.0.0
+  share_plus: ^13.1.0
   tflite_flutter: ^0.12.1
 
 # Dependency notes:
@@ -24,6 +25,7 @@ dependencies:
 #  - flutter_bloc + equatable: project default for state management.
 #  - flutter_foreground_task keeps the 50 Hz sampler alive with the screen off.
 #  - path_provider resolves the documents directory for session-log JSON export.
+#  - share_plus invokes the OS share sheet to export a session JSON.
 
 dev_dependencies:
   flutter_test:

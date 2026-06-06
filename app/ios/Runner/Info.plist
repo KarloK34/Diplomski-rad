@@ -7,14 +7,24 @@
 		<!-- iOS CoreMotion access (required by sensors_plus on iOS). -->
 		<key>NSMotionUsageDescription</key>
 		<string>Aplikacija koristi senzore kretanja za prepoznavanje aktivnosti.</string>
-		<!-- TODO: decide iOS background mode. Most likely `location`
-	     because BGProcessingTask cannot keep CoreMotion streaming continuously. -->
-		<!--
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-	</array>
-	-->
+		<!-- iOS background mode: `processing`.
+		     Decision and trade-off:
+		     - `processing` (BGProcessingTask) is the Apple-sanctioned mode for
+		       an activity app without a location purpose. It does NOT provide
+		       continuous real-time execution — iOS schedules it opportunistically
+		       and suspends the app after backgrounding, so live sampling with the
+		       screen off is not guaranteed on iOS.
+		     Reference: Apple, "Using background tasks to update your app"
+		     (BGTaskScheduler / BGProcessingTask),
+		     https://developer.apple.com/documentation/backgroundtasks ;
+		     App Store Review Guideline 2.5.4,
+		     https://developer.apple.com/app-store/review/guidelines/#software-requirements
+		     Registering concrete BGProcessingTask identifiers is left out of the
+		     MVP — only the minimal mode is declared here. -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>processing</string>
+		</array>
 
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
