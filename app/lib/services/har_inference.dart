@@ -93,6 +93,7 @@ class HarInference {
 
     return ActivityPrediction(
       label: classLabels[argmax],
+      rawLabel: classLabels[argmax],
       probabilities: probabilities,
       timestamp: window.endTimestamp,
       inferenceLatencyMs: stopwatch.elapsedMilliseconds,

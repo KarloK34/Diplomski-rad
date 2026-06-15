@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:gait_sense/models/feature_window.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
+import 'package:gait_sense/services/activity_smoother.dart';
 import 'package:gait_sense/services/feature_pipeline.dart';
 import 'package:gait_sense/services/har_inference.dart';
 import 'package:gait_sense/services/sensor_service.dart';
@@ -44,6 +45,7 @@ class ForegroundMessage {
 class _HarTaskHandler extends TaskHandler {
   final SensorService _sensorService = SensorService();
   final StreamingFeatureExtractor _extractor = StreamingFeatureExtractor();
+  final ActivitySmoother _smoother = ActivitySmoother();
   HarInference? _inference;
   StreamSubscription<SensorSample>? _sampleSubscription;
 
@@ -65,6 +67,7 @@ class _HarTaskHandler extends TaskHandler {
     // isolate; sensors_plus likewise streams from this isolate.
     _inference = await HarInference.load();
     _extractor.reset();
+    _smoother.reset();
     _sensorService.start();
     _sampleSubscription = _sensorService.samples.listen(_onSample);
   }
@@ -81,7 +84,8 @@ class _HarTaskHandler extends TaskHandler {
   Future<void> _classify(FeatureWindow window) async {
     final inference = _inference;
     if (inference == null) return;
-    final prediction = await inference.predict(window);
+    final rawPrediction = await inference.predict(window);
+    final prediction = _smoother.add(rawPrediction);
     _predictionCount++;
     _lastLabel = prediction.label;
     FlutterForegroundTask.sendDataToMain(

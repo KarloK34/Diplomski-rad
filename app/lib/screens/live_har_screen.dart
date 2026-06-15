@@ -194,6 +194,13 @@ class _Ticker extends StatelessWidget {
     if (prediction == null) {
       return Text('Trenutno: —', style: style);
     }
+    if (prediction.wasSmoothed) {
+      return Text(
+        'Trenutno: ${activityLabelHr(prediction.label)} '
+        '(ugladeno iz: ${activityLabelHr(prediction.rawLabel)})',
+        style: style,
+      );
+    }
     final topProbability = prediction.probabilities.reduce(
       (a, b) => a > b ? a : b,
     );

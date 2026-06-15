@@ -27,6 +27,19 @@ void main() {
       );
       expect(decoded, original);
     });
+
+    test('decodes older prediction JSON without rawLabel', () {
+      final decoded = ActivityPrediction.fromJson({
+        'label': 'wlk',
+        'probabilities': const [0.05, 0.05, 0.6, 0.1, 0.1, 0.1],
+        'timestamp': DateTime.utc(2026, 1, 1, 0, 0, 5).toIso8601String(),
+        'inferenceLatencyMs': 3,
+      });
+
+      expect(decoded.label, 'wlk');
+      expect(decoded.rawLabel, 'wlk');
+      expect(decoded.wasSmoothed, isFalse);
+    });
   });
 
   group('SessionLog JSON', () {
@@ -52,17 +65,18 @@ void main() {
       final tempDir = Directory.systemTemp.createTempSync('gait_sense_test');
       addTearDown(() => tempDir.deleteSync(recursive: true));
 
-      final repo = SessionLogRepository(
-        documentsDirectory: () async => tempDir,
-      )
-        ..startSession(
-          startedAt: DateTime.utc(2026, 1, 1, 12, 30, 45),
-          modelInfo: const {
-            'class_labels': ['wlk', 'sit'],
-          },
-        )
-        ..append(prediction('wlk', 1))
-        ..append(prediction('sit', 2));
+      final repo =
+          SessionLogRepository(
+              documentsDirectory: () async => tempDir,
+            )
+            ..startSession(
+              startedAt: DateTime.utc(2026, 1, 1, 12, 30, 45),
+              modelInfo: const {
+                'class_labels': ['wlk', 'sit'],
+              },
+            )
+            ..append(prediction('wlk', 1))
+            ..append(prediction('sit', 2));
       expect(repo.count, 2);
 
       final file = await repo.finishAndSave(
