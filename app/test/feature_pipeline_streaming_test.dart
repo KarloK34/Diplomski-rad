@@ -13,18 +13,18 @@ void main() {
   SensorSample syntheticSample(int t) {
     // A plausible walking-like signal: ~1 g gravity on z, small oscillating
     // user acceleration and rotation. Gravity is non-zero so g_hat is defined.
-    final phase = 2 * pi * t / 25; // ~2 Hz step cadence at 50 Hz
+    final angle = 2 * pi * t / 25; // ~2 Hz step cadence at 50 Hz
     return SensorSample(
       timestamp: DateTime.fromMillisecondsSinceEpoch(t * 20),
-      gravityX: 0.05 * sin(phase),
+      gravityX: 0.05 * sin(angle),
       gravityY: 0.1,
       gravityZ: -0.99,
-      userAccelerationX: 0.3 * sin(phase),
-      userAccelerationY: 0.2 * cos(phase),
-      userAccelerationZ: 0.4 * sin(phase),
-      rotationRateX: 0.5 * cos(phase),
-      rotationRateY: 0.1 * sin(phase),
-      rotationRateZ: 0.2 * cos(phase),
+      userAccelerationX: 0.3 * sin(angle),
+      userAccelerationY: 0.2 * cos(angle),
+      userAccelerationZ: 0.4 * sin(angle),
+      rotationRateX: 0.5 * cos(angle),
+      rotationRateY: 0.1 * sin(angle),
+      rotationRateZ: 0.2 * cos(angle),
     );
   }
 

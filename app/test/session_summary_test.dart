@@ -1,15 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
+import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 
 void main() {
   // Fixed session start so every prediction timestamp below is deterministic.
   final start = DateTime.utc(2026, 1, 1, 12);
 
-  ActivityPrediction predictionAt(String label, int secondsAfterStart) {
+  ActivityPrediction predictionAt(
+    String label,
+    int secondsAfterStart, {
+    String? rawLabel,
+  }) {
     return ActivityPrediction(
       label: label,
+      rawLabel: rawLabel,
       probabilities: const [0.1, 0.1, 0.5, 0.1, 0.1, 0.1],
       timestamp: start.add(Duration(seconds: secondsAfterStart)),
       inferenceLatencyMs: 10,
@@ -106,7 +113,7 @@ void main() {
 
       expect(timeline[0].label, 'sit');
       expect(timeline[0].start, Duration.zero);
-      // Interior boundary at the timestamp where the label first changes (wlk).
+      // Interior boundary uses the timestamp where the new label first appears.
       expect(timeline[0].end, const Duration(seconds: 6));
       expect(timeline[0].windows, 2);
 
@@ -117,7 +124,7 @@ void main() {
 
       expect(timeline[2].label, 'std');
       expect(timeline[2].start, const Duration(seconds: 12));
-      // Last segment anchored at the session duration.
+      // Last segment stays anchored at the full session duration for display.
       expect(timeline[2].end, const Duration(seconds: 60));
       expect(timeline[2].windows, 1);
     });
@@ -133,6 +140,171 @@ void main() {
       expect(timeline.single.start, Duration.zero);
       expect(timeline.single.end, const Duration(seconds: 30));
       expect(timeline.single.windows, 2);
+    });
+  });
+
+  group('computeSessionQualitySummary', () {
+    test('returns empty quality values for no predictions', () {
+      final summary = computeSessionQualitySummary(
+        session(predictions: const []),
+      );
+
+      expect(summary.predictionCount, 0);
+      expect(summary.rawSmoothedChangeCount, 0);
+      expect(summary.rawSmoothedChangeFraction, 0);
+      expect(summary.effectiveLabelWindowCounts, isEmpty);
+      expect(summary.rawLabelWindowCounts, isEmpty);
+      expect(summary.stableLocomotionSegments, isEmpty);
+      expect(summary.stableLocomotionWindowCount, 0);
+      expect(summary.stableLocomotionDuration, Duration.zero);
+      expect(summary.hasEnoughStableLocomotion, isFalse);
+      expect(summary.gaitSegments, isEmpty);
+      expect(summary.suitableGaitSegments, isEmpty);
+      expect(summary.hasEnoughLevelWalkingGaitSegments, isFalse);
+    });
+
+    test('marks one short walking jump as an unsuitable gait segment', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            predictionAt('sit', 1),
+            predictionAt('wlk', 2),
+            predictionAt('sit', 3),
+          ],
+        ),
+      );
+
+      expect(summary.predictionCount, 3);
+      expect(summary.effectiveLabelWindowCounts, {'sit': 2, 'wlk': 1});
+      expect(summary.stableLocomotionSegments, isEmpty);
+      expect(summary.stableLocomotionWindowCount, 0);
+      expect(summary.hasEnoughStableLocomotion, isFalse);
+      expect(summary.gaitSegments, hasLength(1));
+      expect(
+        summary.gaitSegments.single.quality,
+        GaitSegmentQuality.tooFewWindows,
+      );
+      expect(
+        summary.gaitSegments.single.qualityReason,
+        tooFewLevelWalkingWindowsReason,
+      );
+      expect(summary.suitableGaitSegments, isEmpty);
+      expect(summary.hasEnoughLevelWalkingGaitSegments, isFalse);
+    });
+
+    test('accepts five consecutive walking windows as level-walking gait', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            for (var i = 0; i < 5; i++) predictionAt('wlk', i + 1),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 5)),
+        ),
+      );
+
+      expect(summary.predictionCount, 5);
+      expect(summary.stableLocomotionSegments, hasLength(1));
+      expect(summary.stableLocomotionSegments.single.startIndex, 0);
+      expect(summary.stableLocomotionSegments.single.endIndexExclusive, 5);
+      expect(summary.stableLocomotionWindowCount, 5);
+      expect(summary.stableLocomotionDuration, const Duration(seconds: 5));
+      expect(summary.hasEnoughStableLocomotion, isTrue);
+
+      expect(summary.gaitSegments, hasLength(1));
+      expect(summary.gaitSegments.single.isSuitable, isTrue);
+      expect(summary.gaitSegments.single.labelCounts, {'wlk': 5});
+      expect(summary.suitableGaitSegments, hasLength(1));
+      expect(summary.levelWalkingGaitWindowCount, 5);
+      expect(summary.levelWalkingGaitDuration, const Duration(seconds: 5));
+      expect(summary.hasEnoughLevelWalkingGaitSegments, isTrue);
+    });
+
+    test('uses prediction timestamps for stable segment duration', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            predictionAt('wlk', 2),
+            predictionAt('wlk', 4),
+            predictionAt('wlk', 6),
+            predictionAt('wlk', 8),
+            predictionAt('wlk', 10),
+            predictionAt('sit', 12),
+          ],
+        ),
+      );
+
+      expect(summary.stableLocomotionSegments, hasLength(1));
+      // The duration follows the actual 0 s -> 12 s timestamps, not 5 * 1.28 s.
+      expect(summary.stableLocomotionDuration, const Duration(seconds: 12));
+      expect(summary.levelWalkingGaitDuration, const Duration(seconds: 12));
+    });
+
+    test('counts smoothing changes when rawLabel differs from label', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            predictionAt('wlk', 1, rawLabel: 'sit'),
+            predictionAt('wlk', 2),
+            predictionAt('std', 3, rawLabel: 'wlk'),
+          ],
+        ),
+      );
+
+      expect(summary.rawSmoothedChangeCount, 2);
+      expect(summary.rawSmoothedChangeFraction, closeTo(2 / 3, 1e-9));
+      expect(summary.effectiveLabelWindowCounts, {'wlk': 2, 'std': 1});
+      expect(summary.rawLabelWindowCounts, {'sit': 1, 'wlk': 2});
+    });
+
+    test('keeps mixed walking and stairs as locomotion only', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            predictionAt('wlk', 1),
+            predictionAt('ups', 2),
+            predictionAt('dws', 3),
+            predictionAt('ups', 4),
+            predictionAt('wlk', 5),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 5)),
+        ),
+      );
+
+      expect(summary.stableLocomotionSegments, hasLength(1));
+      expect(
+        summary.stableLocomotionSegments.single.effectiveLabelWindowCounts,
+        {
+          'wlk': 2,
+          'ups': 2,
+          'dws': 1,
+        },
+      );
+      expect(summary.stableLocomotionWindowCount, 5);
+      expect(summary.hasEnoughStableLocomotion, isTrue);
+      expect(summary.suitableGaitSegments, isEmpty);
+      expect(summary.hasEnoughLevelWalkingGaitSegments, isFalse);
+    });
+
+    test('does not accept stairs-only locomotion as a gait segment', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            predictionAt('ups', 1),
+            predictionAt('dws', 2),
+            predictionAt('ups', 3),
+            predictionAt('dws', 4),
+            predictionAt('ups', 5),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 5)),
+        ),
+      );
+
+      expect(summary.stableLocomotionSegments, hasLength(1));
+      expect(summary.stableLocomotionWindowCount, 5);
+      expect(summary.hasEnoughStableLocomotion, isTrue);
+      expect(summary.gaitSegments, isEmpty);
+      expect(summary.suitableGaitSegments, isEmpty);
+      expect(summary.hasEnoughLevelWalkingGaitSegments, isFalse);
     });
   });
 

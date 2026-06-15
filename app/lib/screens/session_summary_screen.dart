@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
 import 'package:gait_sense/utils/session_summary.dart';
@@ -12,9 +13,9 @@ import 'package:share_plus/share_plus.dart';
 /// Read-only summary of a finished recording session.
 ///
 /// Renders the session header, per-class time totals (sorted by occupied time),
-/// and a grouped-text timeline of activity segments. Per the MVP scope the
-/// timeline is text only — no charts. Offers JSON export through the system
-/// share sheet and a "new session" action that returns to the live screen.
+/// grouped-text activity segments, and gait-analysis candidates. Offers JSON
+/// export through the system share sheet and a "new session" action that
+/// returns to the live screen.
 class SessionSummaryScreen extends StatelessWidget {
   /// Creates the summary screen for [session].
   const SessionSummaryScreen({required this.session, super.key});
@@ -26,6 +27,7 @@ class SessionSummaryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final totals = computeClassTotals(session);
     final timeline = computeTimeline(session);
+    final quality = computeSessionQualitySummary(session);
     final hasData = session.predictions.isNotEmpty;
 
     return Scaffold(
@@ -37,6 +39,8 @@ class SessionSummaryScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               children: [
                 _Header(session: session),
+                const SizedBox(height: 24),
+                _QualitySection(summary: quality),
                 if (!hasData) ...[
                   const SizedBox(height: 24),
                   const Text('Nema predikcija u ovoj sesiji.'),
@@ -204,6 +208,140 @@ class _ClassTotalRow extends StatelessWidget {
   }
 }
 
+class _QualitySection extends StatelessWidget {
+  const _QualitySection({required this.summary});
+
+  final SessionQualitySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final suitableGaitSegments = summary.suitableGaitSegments;
+    return _Section(
+      title: 'Pouzdanost sesije',
+      children: [
+        _QualityRow(
+          label: 'Raw HAR rezultat',
+          value: _formatLabelCounts(summary.rawLabelWindowCounts),
+        ),
+        _QualityRow(
+          label: 'Smoothed HAR rezultat',
+          value: _formatLabelCounts(summary.effectiveLabelWindowCounts),
+        ),
+        _QualityRow(
+          label: 'Raw/smoothed promjene',
+          value:
+              '${windowCountLabelHr(summary.rawSmoothedChangeCount)} od '
+              '${windowCountLabelHr(summary.predictionCount)}',
+        ),
+        _QualityRow(
+          label: 'Promijenjeni prozori',
+          value: _formatPercent(summary.rawSmoothedChangeFraction),
+        ),
+        _QualityRow(
+          label: 'Stabilna lokomocija',
+          value: summary.hasEnoughStableLocomotion ? 'Da' : 'Ne',
+        ),
+        _QualityRow(
+          label: 'Trajanje stabilne lokomocije',
+          value: _formatDurationSeconds(summary.stableLocomotionDuration),
+        ),
+        const SizedBox(height: 8),
+        _QualityRow(
+          label: 'Kandidati za analizu hoda',
+          value: suitableGaitSegments.isEmpty
+              ? 'Nema kandidata'
+              : _segmentCountLabelHr(suitableGaitSegments.length),
+        ),
+        _QualityRow(
+          label: 'Trajanje stabilnog hodanja po ravnom',
+          value: _formatDurationSeconds(summary.levelWalkingGaitDuration),
+        ),
+        if (suitableGaitSegments.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Parametri hoda nisu izračunati jer nema dovoljno stabilnog '
+              'hodanja po ravnom.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          )
+        else ...[
+          const SizedBox(height: 4),
+          for (final segment in suitableGaitSegments)
+            _GaitSegmentRow(segment: segment),
+        ],
+      ],
+    );
+  }
+}
+
+class _QualityRow extends StatelessWidget {
+  const _QualityRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: muted),
+          const SizedBox(height: 2),
+          Text(value),
+        ],
+      ),
+    );
+  }
+}
+
+/// One suitable level-walking gait-analysis candidate.
+class _GaitSegmentRow extends StatelessWidget {
+  const _GaitSegmentRow({required this.segment});
+
+  final GaitSegment segment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 120,
+                child: Text(
+                  '${_formatClock(segment.startOffset)} - '
+                  '${_formatClock(segment.endOffset)}',
+                  style: muted,
+                ),
+              ),
+              const Expanded(child: Text('Hodanje po ravnom')),
+              Text(windowCountLabelHr(segment.windows), style: muted),
+            ],
+          ),
+          Text(_formatLabelCounts(segment.labelCounts), style: muted),
+        ],
+      ),
+    );
+  }
+}
+
 /// One timeline segment: time range, activity name, and window count.
 class _TimelineRow extends StatelessWidget {
   const _TimelineRow({required this.segment});
@@ -237,6 +375,43 @@ class _TimelineRow extends StatelessWidget {
 }
 
 String _two(int value) => value.toString().padLeft(2, '0');
+
+String _formatLabelCounts(Map<String, int> counts) {
+  if (counts.isEmpty) return 'nema predikcija';
+
+  final entries = counts.entries.toList()
+    ..sort((a, b) {
+      final byWindows = b.value.compareTo(a.value);
+      return byWindows != 0 ? byWindows : a.key.compareTo(b.key);
+    });
+  return entries
+      .map((entry) => '${activityLabelHr(entry.key)}: ${entry.value}')
+      .join(', ');
+}
+
+String _formatPercent(double fraction) {
+  final percentage = fraction * 100;
+  final rounded = percentage.roundToDouble();
+  final decimals = (percentage - rounded).abs() < 0.05 ? 0 : 1;
+  return '${percentage.toStringAsFixed(decimals).replaceAll('.', ',')} %';
+}
+
+String _segmentCountLabelHr(int count) {
+  final ones = count % 10;
+  final teens = count % 100;
+  final noun = ones == 1 && teens != 11
+      ? 'segment'
+      : ones >= 2 && ones <= 4 && (teens < 12 || teens > 14)
+      ? 'segmenta'
+      : 'segmenata';
+  return '$count $noun';
+}
+
+String _formatDurationSeconds(Duration duration) {
+  if (duration.inMinutes >= 1) return _formatClock(duration);
+  final seconds = duration.inMilliseconds / 1000;
+  return '${seconds.toStringAsFixed(1).replaceAll('.', ',')} s';
+}
 
 /// Formats a duration as `mm:ss`, or `h:mm:ss` once it passes an hour.
 String _formatClock(Duration d) {

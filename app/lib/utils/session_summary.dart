@@ -1,10 +1,26 @@
 import 'package:equatable/equatable.dart';
+import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/utils/gait_segments.dart';
+import 'package:gait_sense/utils/prediction_segment_time.dart';
 
 /// Pure aggregation helpers for the session summary screen.
 ///
 /// All functions here are platform-free so they can be unit-tested on the host
 /// VM; the screen widget consumes their output and adds the display layer.
+
+/// Effective labels that count as stable locomotion context in the MotionSense
+/// label set: walking, upstairs, and downstairs. The activity taxonomy follows
+/// MotionSense (Malekzadeh et al., 2019,
+/// https://doi.org/10.1145/3302505.3310068). This set is deliberately broader
+/// than level-walking gait candidates, where only `wlk` is accepted by app
+/// policy.
+const Set<String> defaultLocomotionLabels = {'wlk', 'ups', 'dws'};
+
+/// App-level minimum for consecutive locomotion windows before a run is shown
+/// as stable locomotion. This threshold is project-specific and is not
+/// clinically validated.
+const int defaultStableLocomotionMinWindows = 5;
 
 /// Aggregated time a single activity class occupied during a session.
 class ClassTotal extends Equatable {
@@ -58,8 +74,144 @@ class TimelineSegment extends Equatable {
   List<Object?> get props => [label, start, end, windows];
 }
 
-/// Wall-clock duration of [session]: the stop time minus the start time, or —
-/// while the session has no recorded stop time — the span up to the last
+/// One consecutive locomotion run that is long enough for the app-level gate.
+class StableLocomotionSegment extends Equatable {
+  /// Creates a stable locomotion segment.
+  const StableLocomotionSegment({
+    required this.startIndex,
+    required this.endIndexExclusive,
+    required this.windows,
+    required this.startOffset,
+    required this.endOffset,
+    required this.effectiveLabelWindowCounts,
+  });
+
+  /// Index of the first prediction in the segment.
+  final int startIndex;
+
+  /// Index after the last prediction in the segment.
+  final int endIndexExclusive;
+
+  /// Number of effective HAR windows in the segment.
+  final int windows;
+
+  /// Offset from session start at which this segment begins.
+  final Duration startOffset;
+
+  /// Offset from session start at which this segment ends.
+  final Duration endOffset;
+
+  /// Duration derived from timestamps where possible.
+  Duration get duration {
+    final span = endOffset - startOffset;
+    return span.isNegative ? Duration.zero : span;
+  }
+
+  /// Effective-label counts inside this stable locomotion segment.
+  final Map<String, int> effectiveLabelWindowCounts;
+
+  @override
+  List<Object?> get props => [
+    startIndex,
+    endIndexExclusive,
+    windows,
+    startOffset,
+    endOffset,
+    effectiveLabelWindowCounts,
+  ];
+}
+
+/// Quality summary that keeps raw HAR, smoothed HAR, stable locomotion, and
+/// level-walking gait-analysis candidates separate.
+class SessionQualitySummary extends Equatable {
+  /// Creates a session quality summary.
+  const SessionQualitySummary({
+    required this.predictionCount,
+    required this.rawSmoothedChangeCount,
+    required this.rawSmoothedChangeFraction,
+    required this.effectiveLabelWindowCounts,
+    required this.rawLabelWindowCounts,
+    required this.stableLocomotionSegments,
+    required this.stableLocomotionWindowCount,
+    required this.stableLocomotionDuration,
+    required this.hasEnoughStableLocomotion,
+    required this.gaitSegments,
+  });
+
+  /// Total number of prediction windows in the session.
+  final int predictionCount;
+
+  /// Number of windows where temporal smoothing changed the raw model argmax.
+  final int rawSmoothedChangeCount;
+
+  /// Share of predictions changed by temporal smoothing, in `[0, 1]`.
+  final double rawSmoothedChangeFraction;
+
+  /// Window counts by effective label after smoothing.
+  final Map<String, int> effectiveLabelWindowCounts;
+
+  /// Window counts by raw model argmax before smoothing.
+  final Map<String, int> rawLabelWindowCounts;
+
+  /// Consecutive locomotion runs that satisfy the app-level gate.
+  final List<StableLocomotionSegment> stableLocomotionSegments;
+
+  /// Total number of windows inside stable locomotion runs.
+  final int stableLocomotionWindowCount;
+
+  /// Total timestamp-derived duration inside stable locomotion runs.
+  final Duration stableLocomotionDuration;
+
+  /// Whether at least one stable locomotion run exists.
+  final bool hasEnoughStableLocomotion;
+
+  /// Consecutive `wlk` runs considered for level-walking gait analysis.
+  final List<GaitSegment> gaitSegments;
+
+  /// Candidate gait segments that pass the app-level gate.
+  List<GaitSegment> get suitableGaitSegments {
+    return List.unmodifiable(
+      gaitSegments.where((segment) => segment.isSuitable),
+    );
+  }
+
+  /// Total number of windows inside suitable level-walking gait candidates.
+  int get levelWalkingGaitWindowCount {
+    return suitableGaitSegments.fold<int>(
+      0,
+      (sum, segment) => sum + segment.windows,
+    );
+  }
+
+  /// Total duration inside suitable level-walking gait candidates.
+  Duration get levelWalkingGaitDuration {
+    final microseconds = suitableGaitSegments.fold<int>(
+      0,
+      (sum, segment) => sum + segment.duration.inMicroseconds,
+    );
+    return Duration(microseconds: microseconds);
+  }
+
+  /// Whether a level-walking gait-analysis candidate exists.
+  bool get hasEnoughLevelWalkingGaitSegments => suitableGaitSegments.isNotEmpty;
+
+  @override
+  List<Object?> get props => [
+    predictionCount,
+    rawSmoothedChangeCount,
+    rawSmoothedChangeFraction,
+    effectiveLabelWindowCounts,
+    rawLabelWindowCounts,
+    stableLocomotionSegments,
+    stableLocomotionWindowCount,
+    stableLocomotionDuration,
+    hasEnoughStableLocomotion,
+    gaitSegments,
+  ];
+}
+
+/// Wall-clock duration of [session]: the stop time minus the start time, or
+/// while the session has no recorded stop time, the span up to the last
 /// prediction. Returns [Duration.zero] for an empty session that never stopped,
 /// and clamps any negative result to zero.
 Duration sessionDuration(SessionLog session) {
@@ -139,6 +291,114 @@ List<TimelineSegment> computeTimeline(SessionLog session) {
     runStart = i;
   }
   return segments;
+}
+
+/// Computes raw-vs-smoothed HAR counts, stable locomotion, and gait candidates.
+SessionQualitySummary computeSessionQualitySummary(
+  SessionLog session, {
+  Set<String> locomotionLabels = defaultLocomotionLabels,
+  int minStableLocomotionWindows = defaultStableLocomotionMinWindows,
+  int minGaitCandidateWindows = defaultGaitCandidateMinWindows,
+  Duration fallbackStepDuration = defaultPredictionStepDuration,
+}) {
+  assert(
+    minStableLocomotionWindows > 0,
+    'minStableLocomotionWindows must be positive',
+  );
+  assert(
+    minGaitCandidateWindows > 0,
+    'minGaitCandidateWindows must be positive',
+  );
+  assert(
+    fallbackStepDuration > Duration.zero,
+    'fallbackStepDuration must be positive',
+  );
+
+  final predictions = session.predictions;
+  final effectiveCounts = <String, int>{};
+  final rawCounts = <String, int>{};
+  var changed = 0;
+
+  for (final prediction in predictions) {
+    effectiveCounts[prediction.label] =
+        (effectiveCounts[prediction.label] ?? 0) + 1;
+    rawCounts[prediction.rawLabel] = (rawCounts[prediction.rawLabel] ?? 0) + 1;
+    if (prediction.wasSmoothed) changed++;
+  }
+
+  final stableLocomotionSegments = <StableLocomotionSegment>[];
+  var runStart = -1;
+  var runCounts = <String, int>{};
+
+  void finishRun(int endIndexExclusive) {
+    if (runStart < 0) return;
+
+    final windows = endIndexExclusive - runStart;
+    if (windows >= minStableLocomotionWindows) {
+      final timeRange = predictionSegmentTimeRange(
+        session,
+        startIndex: runStart,
+        endIndexExclusive: endIndexExclusive,
+        fallbackStepDuration: fallbackStepDuration,
+      );
+      stableLocomotionSegments.add(
+        StableLocomotionSegment(
+          startIndex: runStart,
+          endIndexExclusive: endIndexExclusive,
+          windows: windows,
+          startOffset: timeRange.startOffset,
+          endOffset: timeRange.endOffset,
+          effectiveLabelWindowCounts: Map.unmodifiable(runCounts),
+        ),
+      );
+    }
+
+    runStart = -1;
+    runCounts = <String, int>{};
+  }
+
+  for (var i = 0; i < predictions.length; i++) {
+    final label = predictions[i].label;
+    if (locomotionLabels.contains(label)) {
+      if (runStart < 0) {
+        runStart = i;
+        runCounts = <String, int>{};
+      }
+      runCounts[label] = (runCounts[label] ?? 0) + 1;
+    } else {
+      finishRun(i);
+    }
+  }
+  finishRun(predictions.length);
+
+  final stableWindowCount = stableLocomotionSegments.fold<int>(
+    0,
+    (sum, segment) => sum + segment.windows,
+  );
+  final stableDurationUs = stableLocomotionSegments.fold<int>(
+    0,
+    (sum, segment) => sum + segment.duration.inMicroseconds,
+  );
+  final gaitSegments = extractGaitSegments(
+    session,
+    minWindows: minGaitCandidateWindows,
+    fallbackStepDuration: fallbackStepDuration,
+  );
+
+  return SessionQualitySummary(
+    predictionCount: predictions.length,
+    rawSmoothedChangeCount: changed,
+    rawSmoothedChangeFraction: predictions.isEmpty
+        ? 0
+        : changed / predictions.length,
+    effectiveLabelWindowCounts: Map.unmodifiable(effectiveCounts),
+    rawLabelWindowCounts: Map.unmodifiable(rawCounts),
+    stableLocomotionSegments: List.unmodifiable(stableLocomotionSegments),
+    stableLocomotionWindowCount: stableWindowCount,
+    stableLocomotionDuration: Duration(microseconds: stableDurationUs),
+    hasEnoughStableLocomotion: stableLocomotionSegments.isNotEmpty,
+    gaitSegments: gaitSegments,
+  );
 }
 
 /// Croatian count agreement for the noun "prozor" (window).
