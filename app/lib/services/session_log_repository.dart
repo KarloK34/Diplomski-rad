@@ -2,17 +2,21 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:gait_sense/models/activity_prediction.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Owns the active session's prediction buffer and persists a finished session
 /// to a single JSON file under `<documents>/sessions/`.
 ///
-/// Predictions accumulate in a mutable in-memory list rather than rebuilding an
-/// immutable [SessionLog] per window. At one prediction per 1.28 s (128-sample
-/// window, stride 64, 50 Hz) a 10-minute session holds ~470 predictions, each a
-/// label + 6 doubles + a timestamp + an int — on the order of tens of KB, so an
-/// unbounded list is adequate for realistic session lengths.
+/// Predictions and raw IMU samples accumulate in mutable in-memory lists rather
+/// than rebuilding an immutable [SessionLog] on each event. Raw samples are
+/// retained because acceleration-derived gait parameters require a timestamped
+/// signal (Zijlstra & Hof, "Assessment of spatio-temporal gait parameters from
+/// trunk accelerations during human walking", Gait & Posture, 2003,
+/// https://doi.org/10.1016/S0966-6362(02)00190-X); the decision to keep the
+/// full raw stream in this app log is project-specific and not a clinical
+/// validation decision.
 class SessionLogRepository {
   /// [documentsDirectory] is injectable so the file-writing logic is unit
   /// testable: [getApplicationDocumentsDirectory] resolves through a platform
@@ -29,6 +33,7 @@ class SessionLogRepository {
   String? _deviceId;
   Map<String, dynamic> _modelInfo = const {};
   final List<ActivityPrediction> _predictions = [];
+  final List<SensorSample> _rawSamples = [];
 
   SessionLog? _lastSession;
 
@@ -38,8 +43,14 @@ class SessionLogRepository {
   /// Number of predictions buffered in the active session.
   int get count => _predictions.length;
 
+  /// Number of raw IMU samples buffered in the active session.
+  int get sampleCount => _rawSamples.length;
+
   /// Unmodifiable view of the predictions buffered so far.
   List<ActivityPrediction> get predictions => List.unmodifiable(_predictions);
+
+  /// Unmodifiable view of the raw IMU samples buffered so far.
+  List<SensorSample> get rawSamples => List.unmodifiable(_rawSamples);
 
   /// Begins a new session, clearing any buffered predictions.
   void startSession({
@@ -51,11 +62,17 @@ class SessionLogRepository {
     _modelInfo = modelInfo;
     _deviceId = deviceId;
     _predictions.clear();
+    _rawSamples.clear();
   }
 
   /// Appends one prediction to the active session.
   void append(ActivityPrediction prediction) {
     _predictions.add(prediction);
+  }
+
+  /// Appends one raw IMU sample to the active session.
+  void appendSample(SensorSample sample) {
+    _rawSamples.add(sample);
   }
 
   /// Finalizes the session, writes it to
@@ -73,6 +90,7 @@ class SessionLogRepository {
       stoppedAt: stoppedAt,
       deviceId: _deviceId,
       modelInfo: _modelInfo,
+      rawSamples: List.of(_rawSamples),
       predictions: List.of(_predictions),
     );
     _lastSession = session;

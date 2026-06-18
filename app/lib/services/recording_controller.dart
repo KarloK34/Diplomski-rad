@@ -1,4 +1,5 @@
 import 'package:gait_sense/models/activity_prediction.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
 
 /// UI-isolate-facing contract for the background recording service.
 ///
@@ -9,6 +10,9 @@ import 'package:gait_sense/models/activity_prediction.dart';
 abstract interface class RecordingController {
   /// Predictions emitted by the service isolate, decoded on the UI isolate.
   Stream<ActivityPrediction> get predictions;
+
+  /// Raw IMU samples emitted by the service isolate.
+  Stream<SensorSample> get samples;
 
   /// Requests the runtime permissions required before [start].
   Future<void> requestPermissions();

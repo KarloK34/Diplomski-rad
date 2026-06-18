@@ -15,6 +15,7 @@ class ActivityPrediction extends Equatable {
     required this.probabilities,
     required this.timestamp,
     required this.inferenceLatencyMs,
+    this.endSampleIndex,
     String? rawLabel,
   }) : rawLabel = rawLabel ?? label;
 
@@ -30,6 +31,7 @@ class ActivityPrediction extends Equatable {
           .toList(),
       timestamp: DateTime.parse(json['timestamp'] as String),
       inferenceLatencyMs: (json['inferenceLatencyMs'] as num).toInt(),
+      endSampleIndex: (json['endSampleIndex'] as num?)?.toInt(),
     );
   }
 
@@ -45,6 +47,12 @@ class ActivityPrediction extends Equatable {
   /// Wall-clock time of the last sample in the source window.
   final DateTime timestamp;
 
+  /// Index of the last raw sample in the source window.
+  ///
+  /// Null means the prediction came from an older session log that did not
+  /// persist sample indices.
+  final int? endSampleIndex;
+
   /// Measured interpreter latency for this window, in milliseconds.
   final int inferenceLatencyMs;
 
@@ -57,6 +65,7 @@ class ActivityPrediction extends Equatable {
     String? rawLabel,
     List<double>? probabilities,
     DateTime? timestamp,
+    int? endSampleIndex,
     int? inferenceLatencyMs,
   }) {
     return ActivityPrediction(
@@ -64,6 +73,7 @@ class ActivityPrediction extends Equatable {
       rawLabel: rawLabel ?? this.rawLabel,
       probabilities: probabilities ?? this.probabilities,
       timestamp: timestamp ?? this.timestamp,
+      endSampleIndex: endSampleIndex ?? this.endSampleIndex,
       inferenceLatencyMs: inferenceLatencyMs ?? this.inferenceLatencyMs,
     );
   }
@@ -76,6 +86,7 @@ class ActivityPrediction extends Equatable {
       'rawLabel': rawLabel,
       'probabilities': probabilities,
       'timestamp': timestamp.toIso8601String(),
+      'endSampleIndex': endSampleIndex,
       'inferenceLatencyMs': inferenceLatencyMs,
     };
   }
@@ -86,6 +97,7 @@ class ActivityPrediction extends Equatable {
     rawLabel,
     probabilities,
     timestamp,
+    endSampleIndex,
     inferenceLatencyMs,
   ];
 }

@@ -335,7 +335,7 @@ SessionQualitySummary computeSessionQualitySummary(
 
     final windows = endIndexExclusive - runStart;
     if (windows >= minStableLocomotionWindows) {
-      final timeRange = predictionSegmentTimeRange(
+      final timeRange = predictionDisplayTimeRange(
         session,
         startIndex: runStart,
         endIndexExclusive: endIndexExclusive,

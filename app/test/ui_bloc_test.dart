@@ -6,6 +6,7 @@ import 'package:gait_sense/blocs/ui/ui_bloc.dart';
 import 'package:gait_sense/blocs/ui/ui_event.dart';
 import 'package:gait_sense/blocs/ui/ui_state.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
 
@@ -14,15 +15,23 @@ import 'package:gait_sense/services/session_log_repository.dart';
 class _FakeController implements RecordingController {
   final StreamController<ActivityPrediction> _controller =
       StreamController<ActivityPrediction>.broadcast();
+  final StreamController<SensorSample> _sampleController =
+      StreamController<SensorSample>.broadcast();
 
   int startCount = 0;
   int stopCount = 0;
   int permissionCount = 0;
+  FutureOr<void> Function()? onStop;
 
   void emit(ActivityPrediction prediction) => _controller.add(prediction);
 
+  void emitSample(SensorSample sample) => _sampleController.add(sample);
+
   @override
   Stream<ActivityPrediction> get predictions => _controller.stream;
+
+  @override
+  Stream<SensorSample> get samples => _sampleController.stream;
 
   @override
   Future<void> requestPermissions() async => permissionCount++;
@@ -31,7 +40,10 @@ class _FakeController implements RecordingController {
   Future<void> start() async => startCount++;
 
   @override
-  Future<void> stop() async => stopCount++;
+  Future<void> stop() async {
+    stopCount++;
+    await onStop?.call();
+  }
 }
 
 void main() {
@@ -41,6 +53,21 @@ void main() {
       probabilities: const [0.05, 0.05, 0.6, 0.1, 0.1, 0.1],
       timestamp: DateTime.utc(2026),
       inferenceLatencyMs: latencyMs,
+    );
+  }
+
+  SensorSample sample(int millisecond) {
+    return SensorSample(
+      timestamp: DateTime.utc(2026).add(Duration(milliseconds: millisecond)),
+      gravityX: 0,
+      gravityY: 0,
+      gravityZ: 1,
+      userAccelerationX: 0.01,
+      userAccelerationY: 0.02,
+      userAccelerationZ: 0.03,
+      rotationRateX: 0.1,
+      rotationRateY: 0.2,
+      rotationRateZ: 0.3,
     );
   }
 
@@ -67,24 +94,50 @@ void main() {
     );
   }
 
-  test('start requests permissions, starts the service, opens a session',
-      () async {
-    final bloc = buildBloc();
-    addTearDown(bloc.close);
+  test(
+    'start requests permissions, starts the service, opens a session',
+    () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
 
-    bloc.add(const UiRecordingStarted());
-    final state = await bloc.stream.firstWhere(
-      (s) => s.status == RecordingStatus.recording,
-    );
+      bloc.add(const UiRecordingStarted());
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
 
-    expect(controller.permissionCount, 1);
-    expect(controller.startCount, 1);
-    expect(state.predictionCount, 0);
-    expect(repository.count, 0);
-  });
+      expect(controller.permissionCount, 1);
+      expect(controller.startCount, 1);
+      expect(state.predictionCount, 0);
+      expect(repository.count, 0);
+    },
+  );
 
-  test('appends each prediction and updates the rolling latency percentiles',
-      () async {
+  test(
+    'appends each prediction and updates the rolling latency percentiles',
+    () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const UiRecordingStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
+
+      controller
+        ..emit(prediction('wlk', latencyMs: 2))
+        ..emit(prediction('wlk', latencyMs: 10));
+      final state = await bloc.stream.firstWhere((s) => s.predictionCount == 2);
+
+      expect(repository.count, 2);
+      expect(state.latest?.label, 'wlk');
+      // Nearest-rank over [2, 10]: p50 -> ceil(0.5*2)=1 -> index 0 -> 2;
+      // p95 -> ceil(0.95*2)=2 -> index 1 -> 10.
+      expect(state.latencyP50Ms, 2);
+      expect(state.latencyP95Ms, 10);
+    },
+  );
+
+  test('appends raw IMU samples without changing prediction count', () async {
     final bloc = buildBloc();
     addTearDown(bloc.close);
 
@@ -92,16 +145,13 @@ void main() {
     await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
 
     controller
-      ..emit(prediction('wlk', latencyMs: 2))
-      ..emit(prediction('wlk', latencyMs: 10));
-    final state = await bloc.stream.firstWhere((s) => s.predictionCount == 2);
+      ..emitSample(sample(20))
+      ..emitSample(sample(40));
+    await Future<void>.delayed(Duration.zero);
 
-    expect(repository.count, 2);
-    expect(state.latest?.label, 'wlk');
-    // Nearest-rank over [2, 10]: p50 -> ceil(0.5*2)=1 -> index 0 -> 2;
-    // p95 -> ceil(0.95*2)=2 -> index 1 -> 10.
-    expect(state.latencyP50Ms, 2);
-    expect(state.latencyP95Ms, 10);
+    expect(repository.sampleCount, 2);
+    expect(repository.rawSamples.first, sample(20));
+    expect(repository.count, 0);
   });
 
   test('tick recomputes elapsed time from the injected clock', () async {
@@ -127,6 +177,8 @@ void main() {
 
     bloc.add(const UiRecordingStarted());
     await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+    controller.emitSample(sample(20));
+    await Future<void>.delayed(Duration.zero);
     controller.emit(prediction('sit', latencyMs: 3));
     await bloc.stream.firstWhere((s) => s.predictionCount == 1);
 
@@ -138,8 +190,38 @@ void main() {
     expect(controller.stopCount, 1);
     expect(state.finishedSession, isNotNull);
     expect(state.finishedSession!.predictions, hasLength(1));
+    expect(state.finishedSession!.rawSamples, hasLength(1));
     expect(repository.lastSession, isNotNull);
   });
+
+  test(
+    'stop keeps a raw sample emitted while the service is stopping',
+    () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const UiRecordingStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
+
+      controller.onStop = () {
+        controller
+          ..emitSample(sample(40))
+          ..emit(prediction('wlk', latencyMs: 5));
+      };
+
+      bloc.add(const UiRecordingStopped());
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.saved,
+      );
+
+      expect(state.finishedSession, isNotNull);
+      expect(state.finishedSession!.rawSamples, [sample(40)]);
+      expect(state.finishedSession!.predictions, isEmpty);
+      expect(state.predictionCount, 0);
+    },
+  );
 
   test('reset returns to the idle state after a session is saved', () async {
     final bloc = buildBloc();

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
 
@@ -10,35 +11,70 @@ import 'package:gait_sense/services/session_log_repository.dart';
 /// All host-runnable: the repository's documents directory is injected with a
 /// temp dir so `path_provider`'s platform channel is never touched.
 void main() {
-  ActivityPrediction prediction(String label, int second) {
+  ActivityPrediction prediction(
+    String label,
+    int second, {
+    int? endSampleIndex,
+  }) {
     return ActivityPrediction(
       label: label,
       probabilities: const [0.05, 0.05, 0.6, 0.1, 0.1, 0.1],
       timestamp: DateTime.utc(2026, 1, 1, 0, 0, second),
+      endSampleIndex: endSampleIndex,
       inferenceLatencyMs: 3,
+    );
+  }
+
+  SensorSample sample(int millisecond) {
+    return SensorSample(
+      timestamp: DateTime.utc(2026).add(Duration(milliseconds: millisecond)),
+      gravityX: 0,
+      gravityY: 0,
+      gravityZ: 1,
+      userAccelerationX: 0.01,
+      userAccelerationY: 0.02,
+      userAccelerationZ: 0.03,
+      rotationRateX: 0.1,
+      rotationRateY: 0.2,
+      rotationRateZ: 0.3,
     );
   }
 
   group('ActivityPrediction JSON', () {
     test('round-trips losslessly', () {
-      final original = prediction('wlk', 5);
+      final original = prediction('wlk', 5, endSampleIndex: 127);
       final decoded = ActivityPrediction.fromJson(
         jsonDecode(jsonEncode(original.toJson())) as Map<String, dynamic>,
       );
       expect(decoded, original);
+      expect(decoded.endSampleIndex, 127);
     });
 
-    test('decodes older prediction JSON without rawLabel', () {
-      final decoded = ActivityPrediction.fromJson({
-        'label': 'wlk',
-        'probabilities': const [0.05, 0.05, 0.6, 0.1, 0.1, 0.1],
-        'timestamp': DateTime.utc(2026, 1, 1, 0, 0, 5).toIso8601String(),
-        'inferenceLatencyMs': 3,
-      });
+    test(
+      'decodes older prediction JSON without rawLabel or endSampleIndex',
+      () {
+        final decoded = ActivityPrediction.fromJson({
+          'label': 'wlk',
+          'probabilities': const [0.05, 0.05, 0.6, 0.1, 0.1, 0.1],
+          'timestamp': DateTime.utc(2026, 1, 1, 0, 0, 5).toIso8601String(),
+          'inferenceLatencyMs': 3,
+        });
 
-      expect(decoded.label, 'wlk');
-      expect(decoded.rawLabel, 'wlk');
-      expect(decoded.wasSmoothed, isFalse);
+        expect(decoded.label, 'wlk');
+        expect(decoded.rawLabel, 'wlk');
+        expect(decoded.endSampleIndex, isNull);
+        expect(decoded.wasSmoothed, isFalse);
+      },
+    );
+  });
+
+  group('SensorSample JSON', () {
+    test('round-trips losslessly', () {
+      final original = sample(20);
+      final decoded = SensorSample.fromJson(
+        jsonDecode(jsonEncode(original.toJson())) as Map<String, dynamic>,
+      );
+      expect(decoded, original);
     });
   });
 
@@ -51,12 +87,25 @@ void main() {
           'channel_order': ['acc_mag', 'gyro_mag'],
           'class_labels': ['wlk', 'sit'],
         },
+        rawSamples: [sample(20), sample(40)],
         predictions: [prediction('wlk', 1), prediction('sit', 2)],
       );
       final decoded = SessionLog.fromJson(
         jsonDecode(jsonEncode(log.toJson())) as Map<String, dynamic>,
       );
       expect(decoded, log);
+    });
+
+    test('decodes older logs without raw samples', () {
+      final decoded = SessionLog.fromJson({
+        'startedAt': DateTime.utc(2026).toIso8601String(),
+        'stoppedAt': null,
+        'deviceId': null,
+        'modelInfo': const <String, dynamic>{},
+        'predictions': const <Map<String, dynamic>>[],
+      });
+
+      expect(decoded.rawSamples, isEmpty);
     });
   });
 
@@ -76,8 +125,11 @@ void main() {
               },
             )
             ..append(prediction('wlk', 1))
-            ..append(prediction('sit', 2));
+            ..append(prediction('sit', 2))
+            ..appendSample(sample(20))
+            ..appendSample(sample(40));
       expect(repo.count, 2);
+      expect(repo.sampleCount, 2);
 
       final file = await repo.finishAndSave(
         stoppedAt: DateTime.utc(2026, 1, 1, 12, 35),
@@ -91,6 +143,8 @@ void main() {
         jsonDecode(file.readAsStringSync()) as Map<String, dynamic>,
       );
       expect(reloaded.predictions, hasLength(2));
+      expect(reloaded.rawSamples, hasLength(2));
+      expect(reloaded.rawSamples.first, sample(20));
       expect(reloaded.predictions.first.label, 'wlk');
       expect(reloaded.stoppedAt, DateTime.utc(2026, 1, 1, 12, 35));
       expect(repo.lastSession, isNotNull);

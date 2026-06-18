@@ -1,3 +1,4 @@
+import 'package:gait_sense/models/feature_window.dart';
 import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/utils/prediction_segment_time.dart';
@@ -17,10 +18,13 @@ const String tooFewLevelWalkingWindowsReason = 'too_few_level_walking_windows';
 
 /// Extracts consecutive level-walking runs from smoothed session predictions.
 ///
-/// The current session log persists only HAR predictions, not raw IMU samples
-/// or per-window feature matrices. For that reason this helper prepares
-/// candidate intervals only; cadence, step detection, and stride-like metrics
-/// need a persisted signal in a later implementation step.
+/// This helper prepares candidate intervals only; cadence, step detection, and
+/// stride-like metrics are intentionally left to later signal processing over
+/// the persisted raw samples. The acceleration-signal premise follows Zijlstra
+/// & Hof, "Assessment of spatio-temporal gait parameters from trunk
+/// accelerations during human walking", Gait & Posture, 2003,
+/// https://doi.org/10.1016/S0966-6362(02)00190-X; this app-level candidate gate
+/// is not a clinically validated gait segmentation rule.
 List<GaitSegment> extractGaitSegments(
   SessionLog session, {
   String levelWalkingLabel = defaultLevelWalkingLabel,
@@ -41,11 +45,22 @@ List<GaitSegment> extractGaitSegments(
     if (runStart < 0) return;
 
     final windows = endIndexExclusive - runStart;
-    final timeRange = predictionSegmentTimeRange(
+    final displayTimeRange = predictionDisplayTimeRange(
       session,
       startIndex: runStart,
       endIndexExclusive: endIndexExclusive,
       fallbackStepDuration: fallbackStepDuration,
+    );
+    final analysisTimeRange = predictionAnalysisTimeRange(
+      session,
+      startIndex: runStart,
+      endIndexExclusive: endIndexExclusive,
+      fallbackStepDuration: fallbackStepDuration,
+    );
+    final analysisSampleRange = _predictionAnalysisSampleRange(
+      session,
+      startIndex: runStart,
+      endIndexExclusive: endIndexExclusive,
     );
     final isSuitable = windows >= minWindows;
 
@@ -54,8 +69,12 @@ List<GaitSegment> extractGaitSegments(
         startIndex: runStart,
         endIndexExclusive: endIndexExclusive,
         windows: windows,
-        startOffset: timeRange.startOffset,
-        endOffset: timeRange.endOffset,
+        displayStartOffset: displayTimeRange.startOffset,
+        displayEndOffset: displayTimeRange.endOffset,
+        analysisStartOffset: analysisTimeRange.startOffset,
+        analysisEndOffset: analysisTimeRange.endOffset,
+        analysisStartSampleIndex: analysisSampleRange?.startIndex,
+        analysisEndSampleIndexExclusive: analysisSampleRange?.endIndexExclusive,
         labelCounts: Map.unmodifiable(
           _labelCounts(session, runStart, endIndexExclusive),
         ),
@@ -78,6 +97,37 @@ List<GaitSegment> extractGaitSegments(
   finishRun(predictions.length);
 
   return List.unmodifiable(segments);
+}
+
+_SampleRange? _predictionAnalysisSampleRange(
+  SessionLog session, {
+  required int startIndex,
+  required int endIndexExclusive,
+}) {
+  if (startIndex == endIndexExclusive) return null;
+
+  final firstEnd = session.predictions[startIndex].endSampleIndex;
+  final lastEnd = session.predictions[endIndexExclusive - 1].endSampleIndex;
+  if (firstEnd == null || lastEnd == null) return null;
+
+  final start = firstEnd - FeatureWindow.windowSize + 1;
+  final endExclusive = lastEnd + 1;
+  if (start < 0 || endExclusive <= start) return null;
+
+  return _SampleRange(
+    startIndex: start,
+    endIndexExclusive: endExclusive,
+  );
+}
+
+class _SampleRange {
+  const _SampleRange({
+    required this.startIndex,
+    required this.endIndexExclusive,
+  });
+
+  final int startIndex;
+  final int endIndexExclusive;
 }
 
 Map<String, int> _labelCounts(

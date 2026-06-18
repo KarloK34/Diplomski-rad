@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/foreground_service.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 
@@ -23,23 +24,34 @@ class GaitForegroundService implements RecordingController {
 
   final StreamController<ActivityPrediction> _predictions =
       StreamController<ActivityPrediction>.broadcast();
+  final StreamController<SensorSample> _samples =
+      StreamController<SensorSample>.broadcast();
 
   /// Predictions produced by the service isolate, decoded back into objects.
   @override
   Stream<ActivityPrediction> get predictions => _predictions.stream;
 
+  /// Raw IMU samples produced by the service isolate.
+  @override
+  Stream<SensorSample> get samples => _samples.stream;
+
   void _onData(Object data) {
     if (data is! String) return;
     final decoded = jsonDecode(data) as Map<String, dynamic>;
-    if (decoded[ForegroundMessage.eventKey] !=
-        ForegroundMessage.predictionEvent) {
-      return;
+    switch (decoded[ForegroundMessage.eventKey]) {
+      case ForegroundMessage.predictionEvent:
+        _predictions.add(
+          ActivityPrediction.fromJson(
+            decoded[ForegroundMessage.dataKey] as Map<String, dynamic>,
+          ),
+        );
+      case ForegroundMessage.sampleEvent:
+        _samples.add(
+          SensorSample.fromJson(
+            decoded[ForegroundMessage.dataKey] as Map<String, dynamic>,
+          ),
+        );
     }
-    _predictions.add(
-      ActivityPrediction.fromJson(
-        decoded[ForegroundMessage.dataKey] as Map<String, dynamic>,
-      ),
-    );
   }
 
   /// Configures the notification channel and task options. Call once at startup
@@ -108,5 +120,6 @@ class GaitForegroundService implements RecordingController {
   void dispose() {
     FlutterForegroundTask.removeTaskDataCallback(_onData);
     unawaited(_predictions.close());
+    unawaited(_samples.close());
   }
 }

@@ -96,6 +96,7 @@ class HarInference {
       rawLabel: classLabels[argmax],
       probabilities: probabilities,
       timestamp: window.endTimestamp,
+      endSampleIndex: window.endSampleIndex,
       inferenceLatencyMs: stopwatch.elapsedMilliseconds,
     );
   }

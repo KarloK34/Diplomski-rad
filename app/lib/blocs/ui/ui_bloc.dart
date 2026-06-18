@@ -5,6 +5,7 @@ import 'package:gait_sense/blocs/ui/ui_event.dart';
 import 'package:gait_sense/blocs/ui/ui_state.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/har_model_info.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
 
@@ -45,7 +46,8 @@ class UiBloc extends Bloc<UiEvent, UiState> {
   final DateTime Function() _now;
   final Duration _tickInterval;
 
-  StreamSubscription<ActivityPrediction>? _subscription;
+  StreamSubscription<ActivityPrediction>? _predictionSubscription;
+  StreamSubscription<SensorSample>? _sampleSubscription;
   Timer? _ticker;
   DateTime _startedAt = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -63,13 +65,15 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     _latencies.clear();
 
     await _controller.requestPermissions();
-    await _controller.start();
     _repository.startSession(startedAt: _startedAt, modelInfo: _modelInfo);
 
-    await _subscription?.cancel();
-    _subscription = _controller.predictions.listen(
+    await _predictionSubscription?.cancel();
+    await _sampleSubscription?.cancel();
+    _predictionSubscription = _controller.predictions.listen(
       (prediction) => add(UiPredictionReceived(prediction)),
     );
+    _sampleSubscription = _controller.samples.listen(_repository.appendSample);
+    await _controller.start();
     _ticker?.cancel();
     _ticker = Timer.periodic(_tickInterval, (_) => add(const UiTicked()));
 
@@ -81,13 +85,18 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     Emitter<UiState> emit,
   ) async {
     if (state.status != RecordingStatus.recording) return;
-    await _subscription?.cancel();
-    _subscription = null;
     _ticker?.cancel();
     _ticker = null;
 
     emit(state.copyWith(status: RecordingStatus.saving));
     await _controller.stop();
+    await Future<void>.delayed(Duration.zero);
+
+    await _predictionSubscription?.cancel();
+    _predictionSubscription = null;
+    await _sampleSubscription?.cancel();
+    _sampleSubscription = null;
+
     await _repository.finishAndSave(stoppedAt: _now());
     emit(
       state.copyWith(
@@ -146,7 +155,8 @@ class UiBloc extends Bloc<UiEvent, UiState> {
 
   @override
   Future<void> close() async {
-    await _subscription?.cancel();
+    await _predictionSubscription?.cancel();
+    await _sampleSubscription?.cancel();
     _ticker?.cancel();
     return super.close();
   }

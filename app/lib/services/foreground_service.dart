@@ -34,6 +34,9 @@ class ForegroundMessage {
 
   /// [eventKey] value for a prediction payload.
   static const String predictionEvent = 'prediction';
+
+  /// [eventKey] value for a raw IMU sample payload.
+  static const String sampleEvent = 'sample';
 }
 
 /// Runs the live recording pipeline inside the foreground-service isolate.
@@ -73,6 +76,13 @@ class _HarTaskHandler extends TaskHandler {
   }
 
   void _onSample(SensorSample sample) {
+    FlutterForegroundTask.sendDataToMain(
+      jsonEncode({
+        ForegroundMessage.eventKey: ForegroundMessage.sampleEvent,
+        ForegroundMessage.dataKey: sample.toJson(),
+      }),
+    );
+
     final window = _extractor.add(sample);
     if (window == null) return;
     _inferenceChain = _inferenceChain

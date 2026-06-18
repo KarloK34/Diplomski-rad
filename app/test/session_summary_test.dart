@@ -13,12 +13,14 @@ void main() {
     String label,
     int secondsAfterStart, {
     String? rawLabel,
+    int? endSampleIndex,
   }) {
     return ActivityPrediction(
       label: label,
       rawLabel: rawLabel,
       probabilities: const [0.1, 0.1, 0.5, 0.1, 0.1, 0.1],
       timestamp: start.add(Duration(seconds: secondsAfterStart)),
+      endSampleIndex: endSampleIndex,
       inferenceLatencyMs: 10,
     );
   }
@@ -211,12 +213,51 @@ void main() {
       expect(summary.hasEnoughStableLocomotion, isTrue);
 
       expect(summary.gaitSegments, hasLength(1));
-      expect(summary.gaitSegments.single.isSuitable, isTrue);
-      expect(summary.gaitSegments.single.labelCounts, {'wlk': 5});
+      final segment = summary.gaitSegments.single;
+      expect(segment.isSuitable, isTrue);
+      expect(segment.labelCounts, {'wlk': 5});
+      expect(segment.displayStartOffset, Duration.zero);
+      expect(segment.displayEndOffset, const Duration(seconds: 5));
+      expect(segment.analysisStartOffset, const Duration(seconds: 1));
+      expect(segment.analysisEndOffset, const Duration(seconds: 5));
       expect(summary.suitableGaitSegments, hasLength(1));
       expect(summary.levelWalkingGaitWindowCount, 5);
-      expect(summary.levelWalkingGaitDuration, const Duration(seconds: 5));
+      expect(summary.levelWalkingGaitDuration, const Duration(seconds: 4));
       expect(summary.hasEnoughLevelWalkingGaitSegments, isTrue);
+    });
+
+    test('does not count time before the first walking prediction', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            for (var i = 0; i < 5; i++) predictionAt('wlk', i + 3),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 7)),
+        ),
+      );
+
+      final segment = summary.suitableGaitSegments.single;
+      expect(segment.displayStartOffset, Duration.zero);
+      expect(segment.analysisStartOffset, const Duration(seconds: 3));
+      expect(segment.analysisEndOffset, const Duration(seconds: 7));
+      expect(summary.levelWalkingGaitDuration, const Duration(seconds: 4));
+    });
+
+    test('sets analysis sample bounds from the full source windows', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            for (var i = 0; i < 5; i++)
+              predictionAt('wlk', i + 3, endSampleIndex: 127 + i * 64),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 8)),
+        ),
+      );
+
+      final segment = summary.suitableGaitSegments.single;
+      expect(segment.analysisStartOffset, const Duration(seconds: 3));
+      expect(segment.analysisStartSampleIndex, 0);
+      expect(segment.analysisEndSampleIndexExclusive, 384);
     });
 
     test('uses prediction timestamps for stable segment duration', () {
@@ -234,9 +275,8 @@ void main() {
       );
 
       expect(summary.stableLocomotionSegments, hasLength(1));
-      // The duration follows the actual 0 s -> 12 s timestamps, not 5 * 1.28 s.
       expect(summary.stableLocomotionDuration, const Duration(seconds: 12));
-      expect(summary.levelWalkingGaitDuration, const Duration(seconds: 12));
+      expect(summary.levelWalkingGaitDuration, const Duration(seconds: 10));
     });
 
     test('counts smoothing changes when rawLabel differs from label', () {

@@ -42,10 +42,51 @@ class PredictionSegmentTimeRange extends Equatable {
 /// back to [fallbackStepDuration] only when the log has no usable interval.
 /// This is an application timing heuristic, not a clinically validated gait
 /// segmentation rule.
-PredictionSegmentTimeRange predictionSegmentTimeRange(
+PredictionSegmentTimeRange predictionDisplayTimeRange(
   SessionLog session, {
   required int startIndex,
   required int endIndexExclusive,
+  Duration fallbackStepDuration = defaultPredictionStepDuration,
+}) {
+  return _predictionTimeRange(
+    session,
+    startIndex: startIndex,
+    endIndexExclusive: endIndexExclusive,
+    fallbackStepDuration: fallbackStepDuration,
+    anchorFirstStartToZero: true,
+  );
+}
+
+/// Estimates analysis bounds for a run of predictions.
+///
+/// Unlike [predictionDisplayTimeRange], this helper does not anchor the first
+/// segment to `Duration.zero`: the analytical interval starts at the first
+/// observed prediction timestamp. That is an app-level gate for later signal
+/// analysis, not a clinically validated gait-event boundary. Later gait
+/// parameter extraction should use the persisted acceleration signal, following
+/// the signal-based premise in Zijlstra & Hof, "Assessment of spatio-temporal
+/// gait parameters from trunk accelerations during human walking", Gait &
+/// Posture, 2003, https://doi.org/10.1016/S0966-6362(02)00190-X.
+PredictionSegmentTimeRange predictionAnalysisTimeRange(
+  SessionLog session, {
+  required int startIndex,
+  required int endIndexExclusive,
+  Duration fallbackStepDuration = defaultPredictionStepDuration,
+}) {
+  return _predictionTimeRange(
+    session,
+    startIndex: startIndex,
+    endIndexExclusive: endIndexExclusive,
+    fallbackStepDuration: fallbackStepDuration,
+    anchorFirstStartToZero: false,
+  );
+}
+
+PredictionSegmentTimeRange _predictionTimeRange(
+  SessionLog session, {
+  required int startIndex,
+  required int endIndexExclusive,
+  required bool anchorFirstStartToZero,
   Duration fallbackStepDuration = defaultPredictionStepDuration,
 }) {
   assert(startIndex >= 0, 'startIndex must be non-negative');
@@ -69,7 +110,7 @@ PredictionSegmentTimeRange predictionSegmentTimeRange(
     );
   }
 
-  final startOffset = startIndex == 0
+  final startOffset = anchorFirstStartToZero && startIndex == 0
       ? Duration.zero
       : _offsetAt(session, startIndex);
   var endOffset = endIndexExclusive < session.predictions.length

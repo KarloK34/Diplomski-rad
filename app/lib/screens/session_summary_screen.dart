@@ -326,8 +326,8 @@ class _GaitSegmentRow extends StatelessWidget {
               SizedBox(
                 width: 120,
                 child: Text(
-                  '${_formatClock(segment.startOffset)} - '
-                  '${_formatClock(segment.endOffset)}',
+                  '${_formatClock(segment.analysisStartOffset)} - '
+                  '${_formatClock(segment.analysisEndOffset)}',
                   style: muted,
                 ),
               ),

@@ -23,8 +23,12 @@ class GaitSegment extends Equatable {
     required this.startIndex,
     required this.endIndexExclusive,
     required this.windows,
-    required this.startOffset,
-    required this.endOffset,
+    required this.displayStartOffset,
+    required this.displayEndOffset,
+    required this.analysisStartOffset,
+    required this.analysisEndOffset,
+    required this.analysisStartSampleIndex,
+    required this.analysisEndSampleIndexExclusive,
     required this.labelCounts,
     required this.quality,
     required this.qualityReason,
@@ -39,15 +43,34 @@ class GaitSegment extends Equatable {
   /// Number of prediction windows in this run.
   final int windows;
 
-  /// Offset from session start where the segment begins.
-  final Duration startOffset;
+  /// Offset used when the segment is drawn in a session timeline.
+  final Duration displayStartOffset;
 
-  /// Offset from session start where the segment ends.
-  final Duration endOffset;
+  /// End offset used when the segment is drawn in a session timeline.
+  final Duration displayEndOffset;
 
-  /// Segment duration derived from [startOffset] and [endOffset].
+  /// Offset used for later signal analysis of this gait candidate.
+  final Duration analysisStartOffset;
+
+  /// End offset used for later signal analysis of this gait candidate.
+  final Duration analysisEndOffset;
+
+  /// Inclusive raw-sample index where signal analysis should start.
+  ///
+  /// Null means the segment came from predictions without persisted sample
+  /// indices, so callers must fall back to timestamp offsets.
+  final int? analysisStartSampleIndex;
+
+  /// Exclusive raw-sample index where signal analysis should stop.
+  ///
+  /// The interval is [analysisStartSampleIndex,
+  /// analysisEndSampleIndexExclusive) when both values are non-null.
+  final int? analysisEndSampleIndexExclusive;
+
+  /// Analysis duration derived from [analysisStartOffset] and
+  /// [analysisEndOffset].
   Duration get duration {
-    final span = endOffset - startOffset;
+    final span = analysisEndOffset - analysisStartOffset;
     return span.isNegative ? Duration.zero : span;
   }
 
@@ -68,8 +91,12 @@ class GaitSegment extends Equatable {
     startIndex,
     endIndexExclusive,
     windows,
-    startOffset,
-    endOffset,
+    displayStartOffset,
+    displayEndOffset,
+    analysisStartOffset,
+    analysisEndOffset,
+    analysisStartSampleIndex,
+    analysisEndSampleIndexExclusive,
     labelCounts,
     quality,
     qualityReason,
