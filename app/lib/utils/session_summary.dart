@@ -1,7 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
+import 'package:gait_sense/utils/gait_signal_segments.dart';
 import 'package:gait_sense/utils/prediction_segment_time.dart';
 
 /// Pure aggregation helpers for the session summary screen.
@@ -21,6 +23,9 @@ const Set<String> defaultLocomotionLabels = {'wlk', 'ups', 'dws'};
 /// as stable locomotion. This threshold is project-specific and is not
 /// clinically validated.
 const int defaultStableLocomotionMinWindows = 5;
+
+/// No suitable level-walking signal segment was available for cadence.
+const String noSuitableCadenceSignalReason = 'no_suitable_cadence_signal';
 
 /// Aggregated time a single activity class occupied during a session.
 class ClassTotal extends Equatable {
@@ -121,6 +126,72 @@ class StableLocomotionSegment extends Equatable {
   ];
 }
 
+/// Prototype cadence aggregation over suitable level-walking signal slices.
+///
+/// Acceleration-based gait analysis is motivated by Zijlstra & Hof,
+/// "Assessment of spatio-temporal gait parameters from trunk accelerations
+/// during human walking", Gait & Posture, 2003,
+/// https://doi.org/10.1016/S0966-6362(02)00190-X. The aggregation here is an
+/// app-level prototype output and is not clinically validated.
+class GaitCadenceSummary extends Equatable {
+  /// Creates a session-level cadence summary.
+  const GaitCadenceSummary({
+    required this.signalSegmentCount,
+    required this.sampledSignalSegmentCount,
+    required this.computedResultCount,
+    required this.averageCadenceStepsPerMinute,
+    required this.totalStepCount,
+    required this.status,
+    required this.reason,
+    required this.confidence,
+    required this.confidenceReason,
+  });
+
+  /// Number of suitable gait signal segments considered.
+  final int signalSegmentCount;
+
+  /// Number of considered segments with a non-empty raw sample list.
+  final int sampledSignalSegmentCount;
+
+  /// Number of segments that produced a computed cadence result.
+  final int computedResultCount;
+
+  /// Duration-weighted cadence, or null when no segment produced cadence.
+  final double? averageCadenceStepsPerMinute;
+
+  /// Total accepted peak count across cadence attempts.
+  final int totalStepCount;
+
+  /// Overall cadence availability status.
+  final GaitCadenceStatus status;
+
+  /// Machine-readable reason when [status] is not
+  /// [GaitCadenceStatus.computed].
+  final String? reason;
+
+  /// Lowest confidence among the computed segment results.
+  final GaitCadenceConfidence confidence;
+
+  /// Machine-readable reason for a low confidence label.
+  final String? confidenceReason;
+
+  /// Whether [averageCadenceStepsPerMinute] is available.
+  bool get hasComputedCadence => status == GaitCadenceStatus.computed;
+
+  @override
+  List<Object?> get props => [
+    signalSegmentCount,
+    sampledSignalSegmentCount,
+    computedResultCount,
+    averageCadenceStepsPerMinute,
+    totalStepCount,
+    status,
+    reason,
+    confidence,
+    confidenceReason,
+  ];
+}
+
 /// Quality summary that keeps raw HAR, smoothed HAR, stable locomotion, and
 /// level-walking gait-analysis candidates separate.
 class SessionQualitySummary extends Equatable {
@@ -136,6 +207,7 @@ class SessionQualitySummary extends Equatable {
     required this.stableLocomotionDuration,
     required this.hasEnoughStableLocomotion,
     required this.gaitSegments,
+    required this.gaitCadence,
   });
 
   /// Total number of prediction windows in the session.
@@ -167,6 +239,9 @@ class SessionQualitySummary extends Equatable {
 
   /// Consecutive `wlk` runs considered for level-walking gait analysis.
   final List<GaitSegment> gaitSegments;
+
+  /// Prototype cadence summary computed from suitable raw gait signal slices.
+  final GaitCadenceSummary gaitCadence;
 
   /// Candidate gait segments that pass the app-level gate.
   List<GaitSegment> get suitableGaitSegments {
@@ -207,7 +282,163 @@ class SessionQualitySummary extends Equatable {
     stableLocomotionDuration,
     hasEnoughStableLocomotion,
     gaitSegments,
+    gaitCadence,
   ];
+}
+
+/// Aggregates cadence results for suitable raw signal segments.
+///
+/// The mean uses segment duration as a project display rule: a longer raw
+/// signal contributes proportionally more than a shorter one. This aggregation
+/// rule is not clinically validated.
+GaitCadenceSummary summarizeGaitCadence(
+  List<GaitSignalSegment> signalSegments, {
+  Duration minimumDuration = defaultCadenceMinimumDuration,
+  double lowPassCutoffHz = defaultCadenceLowPassCutoffHz,
+  double minimumCadenceStepsPerMinute = defaultCadenceMinimumStepsPerMinute,
+  double maximumCadenceStepsPerMinute = defaultCadenceMaximumStepsPerMinute,
+  double minimumPeakIntervalFraction =
+      defaultCadenceMinimumPeakIntervalFraction,
+  double peakThresholdStdMultiplier = defaultCadencePeakThresholdStdMultiplier,
+  double minimumPeriodicity = defaultCadenceMinimumPeriodicity,
+  double maximumEstimateDisagreement =
+      defaultCadenceMaximumEstimateDisagreement,
+  int minimumDetectedSteps = defaultCadenceMinimumDetectedSteps,
+}) {
+  if (signalSegments.isEmpty) {
+    return const GaitCadenceSummary(
+      signalSegmentCount: 0,
+      sampledSignalSegmentCount: 0,
+      computedResultCount: 0,
+      averageCadenceStepsPerMinute: null,
+      totalStepCount: 0,
+      status: GaitCadenceStatus.empty,
+      reason: noSuitableCadenceSignalReason,
+      confidence: GaitCadenceConfidence.low,
+      confidenceReason: noSuitableCadenceSignalReason,
+    );
+  }
+
+  final sampledSignals = [
+    for (final signal in signalSegments)
+      if (signal.hasSamples) signal,
+  ];
+  if (sampledSignals.isEmpty) {
+    return GaitCadenceSummary(
+      signalSegmentCount: signalSegments.length,
+      sampledSignalSegmentCount: 0,
+      computedResultCount: 0,
+      averageCadenceStepsPerMinute: null,
+      totalStepCount: 0,
+      status: GaitCadenceStatus.empty,
+      reason: _firstEmptySignalReason(signalSegments),
+      confidence: GaitCadenceConfidence.low,
+      confidenceReason: _firstEmptySignalReason(signalSegments),
+    );
+  }
+
+  final results = [
+    for (final signal in sampledSignals)
+      analyzeGaitCadence(
+        signal,
+        minimumDuration: minimumDuration,
+        lowPassCutoffHz: lowPassCutoffHz,
+        minimumCadenceStepsPerMinute: minimumCadenceStepsPerMinute,
+        maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
+        minimumPeakIntervalFraction: minimumPeakIntervalFraction,
+        peakThresholdStdMultiplier: peakThresholdStdMultiplier,
+        minimumPeriodicity: minimumPeriodicity,
+        maximumEstimateDisagreement: maximumEstimateDisagreement,
+        minimumDetectedSteps: minimumDetectedSteps,
+      ),
+  ];
+  final computedResults = [
+    for (final result in results)
+      if (result.isComputed) result,
+  ];
+  final totalStepCount = computedResults.fold<int>(
+    0,
+    (sum, result) => sum + result.stepCount,
+  );
+
+  if (computedResults.isEmpty) {
+    final firstResult = results.first;
+    return GaitCadenceSummary(
+      signalSegmentCount: signalSegments.length,
+      sampledSignalSegmentCount: sampledSignals.length,
+      computedResultCount: 0,
+      averageCadenceStepsPerMinute: null,
+      totalStepCount: totalStepCount,
+      status: firstResult.status,
+      reason: firstResult.reason,
+      confidence: GaitCadenceConfidence.low,
+      confidenceReason: firstResult.confidenceReason ?? firstResult.reason,
+    );
+  }
+
+  final weightedDurationUs = computedResults.fold<int>(
+    0,
+    (sum, result) => sum + result.duration.inMicroseconds,
+  );
+  final weightedCadence = weightedDurationUs == 0
+      ? null
+      : computedResults.fold<double>(
+              0,
+              (sum, result) =>
+                  sum +
+                  result.cadenceStepsPerMinute * result.duration.inMicroseconds,
+            ) /
+            weightedDurationUs;
+  final summaryConfidence = _lowestCadenceConfidence(computedResults);
+  final confidenceReason = _firstCadenceConfidenceReason(computedResults);
+
+  return GaitCadenceSummary(
+    signalSegmentCount: signalSegments.length,
+    sampledSignalSegmentCount: sampledSignals.length,
+    computedResultCount: computedResults.length,
+    averageCadenceStepsPerMinute: weightedCadence,
+    totalStepCount: totalStepCount,
+    status: weightedCadence == null
+        ? GaitCadenceStatus.insufficientSignal
+        : GaitCadenceStatus.computed,
+    reason: weightedCadence == null ? cadenceSignalTooShortReason : null,
+    confidence: summaryConfidence,
+    confidenceReason: confidenceReason,
+  );
+}
+
+GaitCadenceConfidence _lowestCadenceConfidence(
+  List<GaitCadenceResult> results,
+) {
+  if (results.any(
+    (result) => result.confidence == GaitCadenceConfidence.low,
+  )) {
+    return GaitCadenceConfidence.low;
+  }
+  if (results.any(
+    (result) => result.confidence == GaitCadenceConfidence.moderate,
+  )) {
+    return GaitCadenceConfidence.moderate;
+  }
+  return GaitCadenceConfidence.high;
+}
+
+String? _firstCadenceConfidenceReason(List<GaitCadenceResult> results) {
+  for (final result in results) {
+    if (result.confidence == GaitCadenceConfidence.low &&
+        result.confidenceReason != null) {
+      return result.confidenceReason;
+    }
+  }
+  return null;
+}
+
+String _firstEmptySignalReason(List<GaitSignalSegment> signalSegments) {
+  for (final signal in signalSegments) {
+    final reason = signal.emptyReason;
+    if (reason != null) return reason;
+  }
+  return emptyCadenceSignalReason;
 }
 
 /// Wall-clock duration of [session]: the stop time minus the start time, or
@@ -384,6 +615,11 @@ SessionQualitySummary computeSessionQualitySummary(
     minWindows: minGaitCandidateWindows,
     fallbackStepDuration: fallbackStepDuration,
   );
+  final gaitSignalSegments = extractGaitSignalSegments(
+    session,
+    gaitSegments: gaitSegments,
+  );
+  final gaitCadence = summarizeGaitCadence(gaitSignalSegments);
 
   return SessionQualitySummary(
     predictionCount: predictions.length,
@@ -398,6 +634,7 @@ SessionQualitySummary computeSessionQualitySummary(
     stableLocomotionDuration: Duration(microseconds: stableDurationUs),
     hasEnoughStableLocomotion: stableLocomotionSegments.isNotEmpty,
     gaitSegments: gaitSegments,
+    gaitCadence: gaitCadence,
   );
 }
 

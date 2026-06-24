@@ -1,8 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/gait_segment.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
+import 'package:gait_sense/utils/gait_signal_segments.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 
 void main() {
@@ -27,14 +32,59 @@ void main() {
 
   SessionLog session({
     required List<ActivityPrediction> predictions,
+    List<SensorSample> rawSamples = const [],
     DateTime? stoppedAt,
   }) {
     return SessionLog(
       startedAt: start,
       stoppedAt: stoppedAt,
       modelInfo: const {},
+      rawSamples: rawSamples,
       predictions: predictions,
     );
+  }
+
+  SensorSample sampleAt(
+    int index, {
+    double projectedAcceleration = 0,
+  }) {
+    return SensorSample(
+      timestamp: start.add(Duration(milliseconds: index * 20)),
+      gravityX: 0,
+      gravityY: 0,
+      gravityZ: 1,
+      userAccelerationX: 0,
+      userAccelerationY: 0,
+      userAccelerationZ: projectedAcceleration,
+      rotationRateX: 0,
+      rotationRateY: 0,
+      rotationRateZ: 0,
+    );
+  }
+
+  List<SensorSample> periodicSamples(
+    int count, {
+    double firstFrequencyHz = 2,
+    double secondFrequencyHz = 1.5,
+  }) {
+    return [
+      for (var i = 0; i < count; i++)
+        sampleAt(
+          i,
+          projectedAcceleration:
+              0.06 +
+              0.08 *
+                  (1 +
+                      math.sin(
+                        2 *
+                            math.pi *
+                            (i < 500 ? firstFrequencyHz : secondFrequencyHz) *
+                            i *
+                            0.02,
+                      )) /
+                  2,
+        ),
+    ];
   }
 
   group('sessionDuration', () {
@@ -163,6 +213,14 @@ void main() {
       expect(summary.gaitSegments, isEmpty);
       expect(summary.suitableGaitSegments, isEmpty);
       expect(summary.hasEnoughLevelWalkingGaitSegments, isFalse);
+      expect(summary.gaitCadence.signalSegmentCount, 0);
+      expect(summary.gaitCadence.sampledSignalSegmentCount, 0);
+      expect(summary.gaitCadence.computedResultCount, 0);
+      expect(summary.gaitCadence.averageCadenceStepsPerMinute, isNull);
+      expect(summary.gaitCadence.totalStepCount, 0);
+      expect(summary.gaitCadence.status, GaitCadenceStatus.empty);
+      expect(summary.gaitCadence.reason, noSuitableCadenceSignalReason);
+      expect(summary.gaitCadence.confidence, GaitCadenceConfidence.low);
     });
 
     test('marks one short walking jump as an unsuitable gait segment', () {
@@ -224,6 +282,27 @@ void main() {
       expect(summary.levelWalkingGaitWindowCount, 5);
       expect(summary.levelWalkingGaitDuration, const Duration(seconds: 4));
       expect(summary.hasEnoughLevelWalkingGaitSegments, isTrue);
+    });
+
+    test('returns unavailable cadence when raw samples are missing', () {
+      final summary = computeSessionQualitySummary(
+        session(
+          predictions: [
+            for (var i = 0; i < 5; i++) predictionAt('wlk', i + 1),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 5)),
+        ),
+      );
+
+      expect(summary.suitableGaitSegments, hasLength(1));
+      expect(summary.gaitCadence.signalSegmentCount, 1);
+      expect(summary.gaitCadence.sampledSignalSegmentCount, 0);
+      expect(summary.gaitCadence.computedResultCount, 0);
+      expect(summary.gaitCadence.averageCadenceStepsPerMinute, isNull);
+      expect(summary.gaitCadence.totalStepCount, 0);
+      expect(summary.gaitCadence.status, GaitCadenceStatus.empty);
+      expect(summary.gaitCadence.reason, missingRawSamplesReason);
+      expect(summary.gaitCadence.confidence, GaitCadenceConfidence.low);
     });
 
     test('does not count time before the first walking prediction', () {
@@ -345,6 +424,105 @@ void main() {
       expect(summary.gaitSegments, isEmpty);
       expect(summary.suitableGaitSegments, isEmpty);
       expect(summary.hasEnoughLevelWalkingGaitSegments, isFalse);
+    });
+
+    test('returns computed cadence for a synthetic gait signal', () {
+      final rawSamples = periodicSamples(500);
+      final summary = computeSessionQualitySummary(
+        session(
+          rawSamples: rawSamples,
+          predictions: [
+            predictionAt('wlk', 3, endSampleIndex: 177),
+            predictionAt('wlk', 4, endSampleIndex: 241),
+            predictionAt('wlk', 5, endSampleIndex: 305),
+            predictionAt('wlk', 6, endSampleIndex: 369),
+            predictionAt('wlk', 8, endSampleIndex: 433),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 10)),
+        ),
+      );
+
+      expect(summary.suitableGaitSegments, hasLength(1));
+      expect(summary.gaitCadence.signalSegmentCount, 1);
+      expect(summary.gaitCadence.sampledSignalSegmentCount, 1);
+      expect(summary.gaitCadence.computedResultCount, 1);
+      expect(summary.gaitCadence.status, GaitCadenceStatus.computed);
+      expect(summary.gaitCadence.reason, isNull);
+      expect(summary.gaitCadence.confidence, GaitCadenceConfidence.high);
+      expect(summary.gaitCadence.totalStepCount, 15);
+      expect(
+        summary.gaitCadence.averageCadenceStepsPerMinute,
+        closeTo(120, 0.5),
+      );
+    });
+
+    test('weights cadence by segment duration across multiple segments', () {
+      final rawSamples = periodicSamples(1100);
+      final predictions = [
+        predictionAt('wlk', 3, endSampleIndex: 177),
+        predictionAt('wlk', 4, endSampleIndex: 241),
+        predictionAt('wlk', 5, endSampleIndex: 305),
+        predictionAt('wlk', 6, endSampleIndex: 369),
+        predictionAt('wlk', 8, endSampleIndex: 433),
+        predictionAt('sit', 9, endSampleIndex: 497),
+        predictionAt('wlk', 12, endSampleIndex: 627),
+        predictionAt('wlk', 13, endSampleIndex: 691),
+        predictionAt('wlk', 14, endSampleIndex: 755),
+        predictionAt('wlk', 15, endSampleIndex: 819),
+        predictionAt('wlk', 16, endSampleIndex: 883),
+        predictionAt('wlk', 17, endSampleIndex: 947),
+        predictionAt('wlk', 20, endSampleIndex: 1011),
+      ];
+      final log = session(
+        rawSamples: rawSamples,
+        predictions: predictions,
+        stoppedAt: start.add(const Duration(seconds: 22)),
+      );
+      final summary = computeSessionQualitySummary(log);
+      final signals = extractGaitSignalSegments(
+        log,
+        gaitSegments: summary.gaitSegments,
+      );
+      final results = [
+        for (final signal in signals) analyzeGaitCadence(signal),
+      ];
+      final totalDurationUs = results.fold<int>(
+        0,
+        (sum, result) => sum + result.duration.inMicroseconds,
+      );
+      final totalSteps = results.fold<int>(
+        0,
+        (sum, result) => sum + result.stepCount,
+      );
+      final expectedCadence =
+          results.fold<double>(
+            0,
+            (sum, result) =>
+                sum +
+                result.cadenceStepsPerMinute * result.duration.inMicroseconds,
+          ) /
+          totalDurationUs;
+      final simpleAverage =
+          results
+              .map((result) => result.cadenceStepsPerMinute)
+              .reduce((a, b) => a + b) /
+          results.length;
+
+      expect(summary.suitableGaitSegments, hasLength(2));
+      expect(results.every((result) => result.isComputed), isTrue);
+      expect(results.first.duration, isNot(results.last.duration));
+      expect(summary.gaitCadence.signalSegmentCount, 2);
+      expect(summary.gaitCadence.sampledSignalSegmentCount, 2);
+      expect(summary.gaitCadence.computedResultCount, 2);
+      expect(summary.gaitCadence.totalStepCount, totalSteps);
+      expect(
+        summary.gaitCadence.averageCadenceStepsPerMinute,
+        closeTo(expectedCadence, 1e-9),
+      );
+      expect(
+        summary.gaitCadence.averageCadenceStepsPerMinute,
+        isNot(closeTo(simpleAverage, 0.01)),
+      );
     });
   });
 

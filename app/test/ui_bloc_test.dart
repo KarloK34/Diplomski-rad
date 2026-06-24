@@ -195,7 +195,7 @@ void main() {
   });
 
   test(
-    'stop keeps a raw sample emitted while the service is stopping',
+    'stop logs late prediction without updating live prediction count',
     () async {
       final bloc = buildBloc();
       addTearDown(bloc.close);
@@ -218,7 +218,9 @@ void main() {
 
       expect(state.finishedSession, isNotNull);
       expect(state.finishedSession!.rawSamples, [sample(40)]);
-      expect(state.finishedSession!.predictions, isEmpty);
+      expect(state.finishedSession!.predictions, [
+        prediction('wlk', latencyMs: 5),
+      ]);
       expect(state.predictionCount, 0);
     },
   );

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
+import 'package:gait_sense/utils/gait_cadence.dart';
+import 'package:gait_sense/utils/gait_signal_segments.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -256,6 +258,33 @@ class _QualitySection extends StatelessWidget {
           label: 'Trajanje stabilnog hodanja po ravnom',
           value: _formatDurationSeconds(summary.levelWalkingGaitDuration),
         ),
+        const SizedBox(height: 8),
+        _QualityRow(
+          label: 'Kadenca (eksperimentalno)',
+          value: _formatCadence(summary.gaitCadence),
+        ),
+        _QualityRow(
+          label: 'Detektirani koraci (eksperimentalno)',
+          value: _formatStepCount(summary.gaitCadence),
+        ),
+        if (summary.gaitCadence.hasComputedCadence)
+          _QualityRow(
+            label: 'Pouzdanost procjene',
+            value: _formatCadenceConfidence(summary.gaitCadence.confidence),
+          ),
+        if (summary.gaitCadence.hasComputedCadence &&
+            summary.gaitCadence.confidenceReason != null)
+          _QualityRow(
+            label: 'Napomena',
+            value: _formatCadenceConfidenceReason(
+              summary.gaitCadence.confidenceReason,
+            ),
+          ),
+        if (!summary.gaitCadence.hasComputedCadence)
+          _QualityRow(
+            label: 'Razlog',
+            value: _formatCadenceUnavailableReason(summary.gaitCadence.reason),
+          ),
         if (suitableGaitSegments.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -411,6 +440,61 @@ String _formatDurationSeconds(Duration duration) {
   if (duration.inMinutes >= 1) return _formatClock(duration);
   final seconds = duration.inMilliseconds / 1000;
   return '${seconds.toStringAsFixed(1).replaceAll('.', ',')} s';
+}
+
+String _formatCadence(GaitCadenceSummary cadence) {
+  final value = cadence.averageCadenceStepsPerMinute;
+  if (!cadence.hasComputedCadence || value == null) return 'Nije dostupna';
+  return '${value.round()} koraka/min';
+}
+
+String _formatStepCount(GaitCadenceSummary cadence) {
+  if (!cadence.hasComputedCadence) return 'Nije dostupno';
+  return cadence.totalStepCount.toString();
+}
+
+String _formatCadenceConfidence(GaitCadenceConfidence confidence) {
+  return switch (confidence) {
+    GaitCadenceConfidence.low => 'Niska',
+    GaitCadenceConfidence.moderate => 'Srednja',
+    GaitCadenceConfidence.high => 'Visoka',
+  };
+}
+
+String _formatCadenceConfidenceReason(String? reason) {
+  return switch (reason) {
+    cadenceEstimatesDisagreeReason =>
+      'Procjene iz vrhova i dominantnog perioda odstupaju.',
+    lowCadencePeriodicityReason => 'Periodičnost signala je niska.',
+    limitedCadenceEvidenceReason => 'Dostupno je malo ponovljenih koraka.',
+    _ => 'Procjenu treba tumačiti oprezno.',
+  };
+}
+
+String _formatCadenceUnavailableReason(String? reason) {
+  switch (reason) {
+    case noSuitableCadenceSignalReason:
+      return 'Nema dovoljno stabilnog hodanja po ravnom.';
+    case missingRawSamplesReason:
+      return 'Nema spremljenog signala senzora.';
+    case invalidSampleIndexRangeReason:
+    case sampleIndexOutOfRangeReason:
+    case invalidTimeOffsetRangeReason:
+    case noSamplesInTimeRangeReason:
+      return 'Signal hodanja nije dostupan za ovaj zapis.';
+    case emptyCadenceSignalReason:
+      return 'Nema dostupnog signala hodanja.';
+    case cadenceSignalTooShortReason:
+      return 'Signal hodanja je prekratak.';
+    case tooFewCadencePeaksReason:
+      return 'Nije detektirano dovoljno koraka.';
+    case lowCadencePeriodicityReason:
+      return 'Signal hodanja nema dovoljno jasnu periodičnost.';
+    case invalidCadenceTimestampsReason:
+      return 'Vremenske oznake signala nisu valjane.';
+    default:
+      return 'Kadenca nije dostupna.';
+  }
 }
 
 /// Formats a duration as `mm:ss`, or `h:mm:ss` once it passes an hour.

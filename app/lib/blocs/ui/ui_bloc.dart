@@ -116,8 +116,12 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     UiPredictionReceived event,
     Emitter<UiState> emit,
   ) {
-    if (state.status != RecordingStatus.recording) return;
+    final isRecording = state.status == RecordingStatus.recording;
+    final isSaving = state.status == RecordingStatus.saving;
+    if (!isRecording && !isSaving) return;
+
     _repository.append(event.prediction);
+    if (!isRecording) return;
 
     _latencies.add(event.prediction.inferenceLatencyMs);
     if (_latencies.length > _latencyWindow) {

@@ -39,8 +39,7 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<UiBloc>(
-      create: (_) =>
-          UiBloc(controller: _service, repository: _repository),
+      create: (_) => UiBloc(controller: _service, repository: _repository),
       child: MaterialApp(
         title: 'Gait Sense',
         theme: ThemeData(
