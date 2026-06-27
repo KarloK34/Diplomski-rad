@@ -247,6 +247,141 @@ class GaitCadenceResult extends Equatable {
   ];
 }
 
+/// Temporal gait descriptors derived from accepted step-event timings.
+///
+/// Temporal gait analysis from acceleration signals is motivated by Zijlstra &
+/// Hof, "Assessment of spatio-temporal gait parameters from trunk
+/// accelerations during human walking", Gait & Posture, 2003,
+/// https://doi.org/10.1016/S0966-6362(02)00190-X. The summary statistics here
+/// are project display metrics computed from the app's experimental step
+/// detector; they are not clinically validated.
+class GaitTemporalParameters extends Equatable {
+  /// Creates temporal gait parameters.
+  const GaitTemporalParameters({
+    required this.stepIntervalCount,
+    required this.meanStepTime,
+    required this.medianStepTime,
+    required this.stepTimeStandardDeviation,
+    required this.stepTimeCoefficientOfVariation,
+    required this.minimumStepTime,
+    required this.maximumStepTime,
+    required this.meanInstantCadenceStepsPerMinute,
+    required this.instantCadenceStandardDeviationStepsPerMinute,
+    required this.instantCadenceCoefficientOfVariation,
+    required this.gaitRegularity,
+  });
+
+  /// Number of consecutive step-to-step intervals used.
+  final int stepIntervalCount;
+
+  /// Mean duration between accepted consecutive steps.
+  final Duration meanStepTime;
+
+  /// Median duration between accepted consecutive steps.
+  final Duration medianStepTime;
+
+  /// Population standard deviation of step-to-step durations.
+  final Duration stepTimeStandardDeviation;
+
+  /// Step-time standard deviation divided by mean step time.
+  ///
+  /// This normalized variability metric is a project display rule and is not
+  /// clinically validated.
+  final double stepTimeCoefficientOfVariation;
+
+  /// Shortest accepted step-to-step interval.
+  final Duration minimumStepTime;
+
+  /// Longest accepted step-to-step interval.
+  final Duration maximumStepTime;
+
+  /// Mean of per-interval cadence values.
+  final double meanInstantCadenceStepsPerMinute;
+
+  /// Population standard deviation of per-interval cadence values.
+  final double instantCadenceStandardDeviationStepsPerMinute;
+
+  /// Instant-cadence standard deviation divided by mean instant cadence.
+  ///
+  /// This normalized variability metric is a project display rule and is not
+  /// clinically validated.
+  final double instantCadenceCoefficientOfVariation;
+
+  /// Autocorrelation-based regularity score inherited from cadence estimation.
+  ///
+  /// The periodicity-based interpretation follows Wu and Urbanek, "Application
+  /// of de-shape synchrosqueezing to estimate gait cadence from a single-sensor
+  /// accelerometer placed in different body locations", Physiological
+  /// Measurement, 2023, https://doi.org/10.1088/1361-6579/accefe. The app-level
+  /// score should be treated as an experimental signal-quality descriptor.
+  final double? gaitRegularity;
+
+  @override
+  List<Object?> get props => [
+    stepIntervalCount,
+    meanStepTime,
+    medianStepTime,
+    stepTimeStandardDeviation,
+    stepTimeCoefficientOfVariation,
+    minimumStepTime,
+    maximumStepTime,
+    meanInstantCadenceStepsPerMinute,
+    instantCadenceStandardDeviationStepsPerMinute,
+    instantCadenceCoefficientOfVariation,
+    gaitRegularity,
+  ];
+}
+
+/// Computes temporal gait descriptors from one cadence result.
+///
+/// Intervals are calculated only between consecutive accepted peaks in the
+/// same result. The statistics are app-level descriptors and are not clinically
+/// validated.
+GaitTemporalParameters? computeGaitTemporalParameters(
+  GaitCadenceResult result,
+) {
+  if (!result.isComputed) return null;
+  final intervalUs = _stepIntervalMicroseconds(result.detectedStepOffsets);
+  return _temporalParametersFromIntervals(
+    intervalUs,
+    gaitRegularity: result.periodicity,
+  );
+}
+
+/// Aggregates temporal descriptors across multiple cadence results.
+///
+/// Step intervals are pooled within each result, but no artificial interval is
+/// created across gaps between separate gait segments. This aggregation is a
+/// project display rule and is not clinically validated.
+GaitTemporalParameters? summarizeGaitTemporalParameters(
+  List<GaitCadenceResult> results,
+) {
+  final intervalUs = <int>[];
+  var weightedRegularity = 0.0;
+  var regularityWeight = 0;
+
+  for (final result in results) {
+    if (!result.isComputed) continue;
+    final resultIntervals = _stepIntervalMicroseconds(
+      result.detectedStepOffsets,
+    );
+    intervalUs.addAll(resultIntervals);
+
+    final periodicity = result.periodicity;
+    if (periodicity != null && resultIntervals.isNotEmpty) {
+      weightedRegularity += periodicity * resultIntervals.length;
+      regularityWeight += resultIntervals.length;
+    }
+  }
+
+  return _temporalParametersFromIntervals(
+    intervalUs,
+    gaitRegularity: regularityWeight == 0
+        ? null
+        : weightedRegularity / regularityWeight,
+  );
+}
+
 /// Estimates step count and cadence from `segment.samples`.
 ///
 /// This helper uses only the segment samples and their timestamps. The
@@ -534,6 +669,69 @@ GaitCadenceResult _notComputed({
   );
 }
 
+List<int> _stepIntervalMicroseconds(List<Duration> stepOffsets) {
+  final intervalUs = <int>[];
+  for (var i = 1; i < stepOffsets.length; i++) {
+    final interval = stepOffsets[i] - stepOffsets[i - 1];
+    if (interval > Duration.zero) {
+      intervalUs.add(interval.inMicroseconds);
+    }
+  }
+  return intervalUs;
+}
+
+GaitTemporalParameters? _temporalParametersFromIntervals(
+  List<int> intervalUs, {
+  required double? gaitRegularity,
+}) {
+  if (intervalUs.isEmpty) return null;
+
+  final intervalValues = [
+    for (final interval in intervalUs) interval.toDouble(),
+  ];
+  final meanIntervalUs = _mean(intervalValues);
+  if (meanIntervalUs <= 0) return null;
+
+  final stepTimeStdUs = _standardDeviation(intervalValues, meanIntervalUs);
+  final instantCadenceValues = [
+    for (final interval in intervalUs)
+      Duration.microsecondsPerMinute / interval,
+  ];
+  final meanInstantCadence = _mean(instantCadenceValues);
+  final instantCadenceStd = _standardDeviation(
+    instantCadenceValues,
+    meanInstantCadence,
+  );
+
+  return GaitTemporalParameters(
+    stepIntervalCount: intervalUs.length,
+    meanStepTime: _durationFromMicroseconds(meanIntervalUs),
+    medianStepTime: _durationFromMicroseconds(_medianNumeric(intervalValues)),
+    stepTimeStandardDeviation: _durationFromMicroseconds(stepTimeStdUs),
+    stepTimeCoefficientOfVariation: stepTimeStdUs / meanIntervalUs,
+    minimumStepTime: Duration(microseconds: intervalUs.reduce(math.min)),
+    maximumStepTime: Duration(microseconds: intervalUs.reduce(math.max)),
+    meanInstantCadenceStepsPerMinute: meanInstantCadence,
+    instantCadenceStandardDeviationStepsPerMinute: instantCadenceStd,
+    instantCadenceCoefficientOfVariation: meanInstantCadence <= 0
+        ? 0
+        : instantCadenceStd / meanInstantCadence,
+    gaitRegularity: gaitRegularity,
+  );
+}
+
+Duration _durationFromMicroseconds(double microseconds) {
+  return Duration(microseconds: microseconds.round());
+}
+
+double _medianNumeric(List<double> values) {
+  final sorted = List<double>.of(values)..sort();
+  final middle = sorted.length ~/ 2;
+  return sorted.length.isOdd
+      ? sorted[middle]
+      : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
 bool _hasStrictlyIncreasingTimestamps(List<SensorSample> samples) {
   for (var i = 1; i < samples.length; i++) {
     final delta = samples[i].timestamp.difference(samples[i - 1].timestamp);
@@ -559,7 +757,6 @@ double _userAccelerationMagnitude(SensorSample sample) {
 /// forward/backward pass as a dependency-free project adaptation. The
 /// Butterworth filter family follows Butterworth, "On the Theory of Filter
 /// Amplifiers", Experimental Wireless & the Wireless Engineer, 1930.
-/// Applies cadence low-pass Butterworth preprocessing used by the estimator.
 ///
 /// This function is intentionally public so numerical tests and offline
 /// diagnostics can verify the same filter used by [analyzeGaitCadenceSamples].

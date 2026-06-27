@@ -280,6 +280,28 @@ class _QualitySection extends StatelessWidget {
               summary.gaitCadence.confidenceReason,
             ),
           ),
+        if (summary.gaitCadence.temporalParameters case final temporal?) ...[
+          _QualityRow(
+            label: 'Prosječno vrijeme koraka (eksperimentalno)',
+            value: _formatDurationSeconds(temporal.meanStepTime),
+          ),
+          _QualityRow(
+            label: 'Varijabilnost vremena koraka (eksperimentalno)',
+            value: _formatPercent(
+              temporal.stepTimeCoefficientOfVariation,
+            ),
+          ),
+          _QualityRow(
+            label: 'Varijabilnost kadence (eksperimentalno)',
+            value: _formatCadenceSpread(
+              temporal.instantCadenceStandardDeviationStepsPerMinute,
+            ),
+          ),
+          _QualityRow(
+            label: 'Regularnost signala (eksperimentalno)',
+            value: _formatGaitRegularity(temporal.gaitRegularity),
+          ),
+        ],
         if (!summary.gaitCadence.hasComputedCadence)
           _QualityRow(
             label: 'Razlog',
@@ -451,6 +473,15 @@ String _formatCadence(GaitCadenceSummary cadence) {
 String _formatStepCount(GaitCadenceSummary cadence) {
   if (!cadence.hasComputedCadence) return 'Nije dostupno';
   return cadence.totalStepCount.toString();
+}
+
+String _formatCadenceSpread(double stepsPerMinute) {
+  return '${stepsPerMinute.round()} koraka/min';
+}
+
+String _formatGaitRegularity(double? regularity) {
+  if (regularity == null) return 'Nije dostupna';
+  return _formatPercent(regularity);
 }
 
 String _formatCadenceConfidence(GaitCadenceConfidence confidence) {

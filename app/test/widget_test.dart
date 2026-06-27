@@ -68,13 +68,25 @@ void main() {
     );
 
     expect(find.text('Kadenca (eksperimentalno)'), findsOneWidget);
-    expect(find.textContaining('koraka/min'), findsOneWidget);
+    expect(find.text('120 koraka/min'), findsOneWidget);
     expect(
       find.text('Detektirani koraci (eksperimentalno)'),
       findsOneWidget,
     );
     expect(find.text('Pouzdanost procjene'), findsOneWidget);
     expect(find.text('Visoka'), findsOneWidget);
+    expect(
+      find.text('Prosječno vrijeme koraka (eksperimentalno)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Varijabilnost vremena koraka (eksperimentalno)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Regularnost signala (eksperimentalno)'),
+      findsOneWidget,
+    );
     expect(find.text('Razlog'), findsNothing);
   });
 
@@ -113,6 +125,10 @@ void main() {
       );
       expect(find.text('Nije dostupno'), findsOneWidget);
       expect(find.text('Razlog'), findsOneWidget);
+      expect(
+        find.text('Prosječno vrijeme koraka (eksperimentalno)'),
+        findsNothing,
+      );
     },
   );
 }

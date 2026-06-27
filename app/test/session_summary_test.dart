@@ -87,6 +87,15 @@ void main() {
     ];
   }
 
+  Matcher closeToDuration(Duration expected, int toleranceMicroseconds) {
+    return predicate<Duration>(
+      (actual) =>
+          (actual.inMicroseconds - expected.inMicroseconds).abs() <=
+          toleranceMicroseconds,
+      'within ${toleranceMicroseconds}us of $expected',
+    );
+  }
+
   group('sessionDuration', () {
     test('uses stoppedAt minus startedAt when stopped', () {
       final log = session(
@@ -218,6 +227,7 @@ void main() {
       expect(summary.gaitCadence.computedResultCount, 0);
       expect(summary.gaitCadence.averageCadenceStepsPerMinute, isNull);
       expect(summary.gaitCadence.totalStepCount, 0);
+      expect(summary.gaitCadence.temporalParameters, isNull);
       expect(summary.gaitCadence.status, GaitCadenceStatus.empty);
       expect(summary.gaitCadence.reason, noSuitableCadenceSignalReason);
       expect(summary.gaitCadence.confidence, GaitCadenceConfidence.low);
@@ -300,6 +310,7 @@ void main() {
       expect(summary.gaitCadence.computedResultCount, 0);
       expect(summary.gaitCadence.averageCadenceStepsPerMinute, isNull);
       expect(summary.gaitCadence.totalStepCount, 0);
+      expect(summary.gaitCadence.temporalParameters, isNull);
       expect(summary.gaitCadence.status, GaitCadenceStatus.empty);
       expect(summary.gaitCadence.reason, missingRawSamplesReason);
       expect(summary.gaitCadence.confidence, GaitCadenceConfidence.low);
@@ -450,6 +461,12 @@ void main() {
       expect(summary.gaitCadence.reason, isNull);
       expect(summary.gaitCadence.confidence, GaitCadenceConfidence.high);
       expect(summary.gaitCadence.totalStepCount, 15);
+      expect(summary.gaitCadence.temporalParameters, isNotNull);
+      expect(summary.gaitCadence.temporalParameters!.stepIntervalCount, 14);
+      expect(
+        summary.gaitCadence.temporalParameters!.meanStepTime,
+        closeToDuration(const Duration(milliseconds: 500), 25000),
+      );
       expect(
         summary.gaitCadence.averageCadenceStepsPerMinute,
         closeTo(120, 0.5),
@@ -494,6 +511,11 @@ void main() {
         0,
         (sum, result) => sum + result.stepCount,
       );
+      final totalIntervals = results.fold<int>(
+        0,
+        (sum, result) =>
+            sum + computeGaitTemporalParameters(result)!.stepIntervalCount,
+      );
       final expectedCadence =
           results.fold<double>(
             0,
@@ -515,6 +537,11 @@ void main() {
       expect(summary.gaitCadence.sampledSignalSegmentCount, 2);
       expect(summary.gaitCadence.computedResultCount, 2);
       expect(summary.gaitCadence.totalStepCount, totalSteps);
+      expect(summary.gaitCadence.temporalParameters, isNotNull);
+      expect(
+        summary.gaitCadence.temporalParameters!.stepIntervalCount,
+        totalIntervals,
+      );
       expect(
         summary.gaitCadence.averageCadenceStepsPerMinute,
         closeTo(expectedCadence, 1e-9),

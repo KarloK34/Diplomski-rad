@@ -141,6 +141,7 @@ class GaitCadenceSummary extends Equatable {
     required this.computedResultCount,
     required this.averageCadenceStepsPerMinute,
     required this.totalStepCount,
+    required this.temporalParameters,
     required this.status,
     required this.reason,
     required this.confidence,
@@ -161,6 +162,9 @@ class GaitCadenceSummary extends Equatable {
 
   /// Total accepted peak count across cadence attempts.
   final int totalStepCount;
+
+  /// Experimental temporal gait descriptors derived from accepted step times.
+  final GaitTemporalParameters? temporalParameters;
 
   /// Overall cadence availability status.
   final GaitCadenceStatus status;
@@ -185,6 +189,7 @@ class GaitCadenceSummary extends Equatable {
     computedResultCount,
     averageCadenceStepsPerMinute,
     totalStepCount,
+    temporalParameters,
     status,
     reason,
     confidence,
@@ -312,6 +317,7 @@ GaitCadenceSummary summarizeGaitCadence(
       computedResultCount: 0,
       averageCadenceStepsPerMinute: null,
       totalStepCount: 0,
+      temporalParameters: null,
       status: GaitCadenceStatus.empty,
       reason: noSuitableCadenceSignalReason,
       confidence: GaitCadenceConfidence.low,
@@ -330,6 +336,7 @@ GaitCadenceSummary summarizeGaitCadence(
       computedResultCount: 0,
       averageCadenceStepsPerMinute: null,
       totalStepCount: 0,
+      temporalParameters: null,
       status: GaitCadenceStatus.empty,
       reason: _firstEmptySignalReason(signalSegments),
       confidence: GaitCadenceConfidence.low,
@@ -369,6 +376,7 @@ GaitCadenceSummary summarizeGaitCadence(
       computedResultCount: 0,
       averageCadenceStepsPerMinute: null,
       totalStepCount: totalStepCount,
+      temporalParameters: null,
       status: firstResult.status,
       reason: firstResult.reason,
       confidence: GaitCadenceConfidence.low,
@@ -389,6 +397,7 @@ GaitCadenceSummary summarizeGaitCadence(
                   result.cadenceStepsPerMinute * result.duration.inMicroseconds,
             ) /
             weightedDurationUs;
+  final temporalParameters = summarizeGaitTemporalParameters(computedResults);
   final summaryConfidence = _lowestCadenceConfidence(computedResults);
   final confidenceReason = _firstCadenceConfidenceReason(computedResults);
 
@@ -398,6 +407,7 @@ GaitCadenceSummary summarizeGaitCadence(
     computedResultCount: computedResults.length,
     averageCadenceStepsPerMinute: weightedCadence,
     totalStepCount: totalStepCount,
+    temporalParameters: temporalParameters,
     status: weightedCadence == null
         ? GaitCadenceStatus.insufficientSignal
         : GaitCadenceStatus.computed,

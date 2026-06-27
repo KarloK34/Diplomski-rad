@@ -89,6 +89,32 @@ void main() {
     );
   }
 
+  GaitCadenceResult computedResultFromOffsets(
+    List<Duration> offsets, {
+    double periodicity = 0.5,
+  }) {
+    final duration = offsets.isEmpty ? Duration.zero : offsets.last;
+    return GaitCadenceResult(
+      stepCount: offsets.length,
+      cadenceStepsPerMinute: 0,
+      peakCadenceStepsPerMinute: null,
+      periodCadenceStepsPerMinute: null,
+      dominantPeriod: null,
+      periodicity: periodicity,
+      adaptiveThreshold: null,
+      minimumPeakInterval: null,
+      duration: duration,
+      detectedStepSampleIndices: [
+        for (var i = 0; i < offsets.length; i++) i,
+      ],
+      detectedStepOffsets: offsets,
+      status: GaitCadenceStatus.computed,
+      reason: null,
+      confidence: GaitCadenceConfidence.moderate,
+      confidenceReason: null,
+    );
+  }
+
   List<SensorSample> timestampSamples(int count) {
     return [for (var i = 0; i < count; i++) sampleAt(i)];
   }
@@ -143,6 +169,105 @@ void main() {
     expect(tooShort.reason, cadenceSignalTooShortReason);
     expect(tooShort.stepCount, 0);
     expect(tooShort.duration, const Duration(milliseconds: 20));
+  });
+
+  test('computes temporal parameters from uniform step intervals', () {
+    final result = computedResultFromOffsets(
+      [
+        Duration.zero,
+        const Duration(milliseconds: 500),
+        const Duration(milliseconds: 1000),
+        const Duration(milliseconds: 1500),
+        const Duration(milliseconds: 2000),
+      ],
+      periodicity: 0.42,
+    );
+
+    final temporal = computeGaitTemporalParameters(result);
+
+    expect(temporal, isNotNull);
+    expect(temporal!.stepIntervalCount, 4);
+    expect(temporal.meanStepTime, const Duration(milliseconds: 500));
+    expect(temporal.medianStepTime, const Duration(milliseconds: 500));
+    expect(temporal.stepTimeStandardDeviation, Duration.zero);
+    expect(temporal.stepTimeCoefficientOfVariation, closeTo(0, 1e-12));
+    expect(temporal.minimumStepTime, const Duration(milliseconds: 500));
+    expect(temporal.maximumStepTime, const Duration(milliseconds: 500));
+    expect(temporal.meanInstantCadenceStepsPerMinute, closeTo(120, 1e-9));
+    expect(
+      temporal.instantCadenceStandardDeviationStepsPerMinute,
+      closeTo(0, 1e-12),
+    );
+    expect(temporal.instantCadenceCoefficientOfVariation, closeTo(0, 1e-12));
+    expect(temporal.gaitRegularity, closeTo(0.42, 1e-12));
+  });
+
+  test('computes temporal variability from uneven step intervals', () {
+    final result = computedResultFromOffsets(
+      [
+        Duration.zero,
+        const Duration(milliseconds: 500),
+        const Duration(milliseconds: 1100),
+        const Duration(milliseconds: 1800),
+      ],
+    );
+
+    final temporal = computeGaitTemporalParameters(result);
+
+    expect(temporal, isNotNull);
+    expect(temporal!.stepIntervalCount, 3);
+    expect(temporal.meanStepTime, const Duration(milliseconds: 600));
+    expect(temporal.medianStepTime, const Duration(milliseconds: 600));
+    expect(
+      temporal.stepTimeStandardDeviation.inMicroseconds,
+      closeTo(81650, 1),
+    );
+    expect(
+      temporal.stepTimeCoefficientOfVariation,
+      closeTo(0.136083, 1e-6),
+    );
+    expect(temporal.minimumStepTime, const Duration(milliseconds: 500));
+    expect(temporal.maximumStepTime, const Duration(milliseconds: 700));
+    expect(
+      temporal.meanInstantCadenceStepsPerMinute,
+      closeTo(101.9047619, 1e-6),
+    );
+  });
+
+  test('aggregates temporal parameters without crossing segment gaps', () {
+    final first = computedResultFromOffsets(
+      [
+        Duration.zero,
+        const Duration(milliseconds: 500),
+        const Duration(milliseconds: 1000),
+      ],
+      periodicity: 0.4,
+    );
+    final second = computedResultFromOffsets(
+      [
+        Duration.zero,
+        const Duration(milliseconds: 600),
+        const Duration(milliseconds: 1200),
+        const Duration(milliseconds: 1800),
+      ],
+      periodicity: 0.7,
+    );
+
+    final temporal = summarizeGaitTemporalParameters([first, second]);
+
+    expect(temporal, isNotNull);
+    expect(temporal!.stepIntervalCount, 5);
+    expect(temporal.meanStepTime, const Duration(milliseconds: 560));
+    expect(temporal.minimumStepTime, const Duration(milliseconds: 500));
+    expect(temporal.maximumStepTime, const Duration(milliseconds: 600));
+    expect(temporal.gaitRegularity, closeTo(0.58, 1e-12));
+  });
+
+  test('returns no temporal parameters without consecutive steps', () {
+    final result = computedResultFromOffsets([Duration.zero]);
+
+    expect(computeGaitTemporalParameters(result), isNull);
+    expect(summarizeGaitTemporalParameters([result]), isNull);
   });
 
   test('Butterworth preprocessing has the expected low-pass response', () {
