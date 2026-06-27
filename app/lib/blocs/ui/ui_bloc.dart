@@ -7,6 +7,7 @@ import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/har_model_info.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/recording_controller.dart';
+import 'package:gait_sense/services/session_limit.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
 
 /// Size of the rolling window over which inference-latency percentiles are
@@ -14,15 +15,6 @@ import 'package:gait_sense/services/session_log_repository.dart';
 /// window per 1.28 s — stride 64 at 50 Hz). A bounded window reports recent
 /// conditions rather than a session-cumulative average that hides regressions.
 const int _latencyWindow = 60;
-
-/// Hard upper limit on session duration.
-///
-/// Chosen to keep peak RAM during [SessionLogRepository.finishAndSave] within
-/// ~50 MB: at 50 Hz, a 30-minute session produces ~90 000 raw IMU samples and
-/// ~1 400 prediction windows, whose combined JSON representation fits
-/// comfortably below that threshold on the devices targeted by this app. See
-/// `doc/architecture.md` for the full memory analysis.
-const Duration defaultMaxSessionDuration = Duration(minutes: 30);
 
 /// Orchestrates a recording session on the UI isolate.
 ///
@@ -192,12 +184,17 @@ class UiBloc extends Bloc<UiEvent, UiState> {
 
   void _onTicked(UiTicked event, Emitter<UiState> emit) {
     if (state.status != RecordingStatus.recording) return;
-    final elapsed = _now().difference(_startedAt);
+    final now = _now();
+    final elapsed = now.difference(_startedAt);
     emit(state.copyWith(elapsed: elapsed));
 
     // Auto-stop when the hard limit is reached. Dispatched as an event so the
     // save flow runs through the normal handler and remains testable.
-    if (elapsed >= maxSessionDuration) {
+    if (hasReachedSessionLimit(
+      startedAt: _startedAt,
+      now: now,
+      maxDuration: maxSessionDuration,
+    )) {
       add(const UiSessionLimitReached());
     }
   }
