@@ -33,6 +33,18 @@ class LiveHarScreen extends StatelessWidget {
       listener: (context, state) {
         final session = state.finishedSession;
         if (session == null) return;
+
+        if (state.stoppedByLimit) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Sesija je automatski zaustavljena — dostignut je limit od 30 minuta.',
+              ),
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+
         unawaited(
           Navigator.of(context)
               .push<void>(
@@ -130,6 +142,7 @@ class _Body extends StatelessWidget {
     final muted = textTheme.bodyMedium?.copyWith(
       color: Theme.of(context).colorScheme.onSurfaceVariant,
     );
+    final bloc = context.read<UiBloc>();
 
     return Center(
       child: Column(
@@ -141,6 +154,13 @@ class _Body extends StatelessWidget {
             _formatElapsed(state.elapsed),
             style: textTheme.displayMedium,
           ),
+          if (state.status == RecordingStatus.recording) ...[
+            const SizedBox(height: 4),
+            _SessionLimitBar(
+              elapsed: state.elapsed,
+              maxDuration: bloc.maxSessionDuration,
+            ),
+          ],
           const SizedBox(height: 24),
           Text(
             'Predikcija: ${state.predictionCount}',
@@ -175,6 +195,60 @@ class _Body extends StatelessWidget {
   }
 
   static String _formatElapsed(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+}
+
+/// Thin progress bar + remaining-time label that shows how much of the 30-min
+/// session budget has been consumed.
+class _SessionLimitBar extends StatelessWidget {
+  const _SessionLimitBar({
+    required this.elapsed,
+    required this.maxDuration,
+  });
+
+  final Duration elapsed;
+  final Duration maxDuration;
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction =
+        (elapsed.inMilliseconds / maxDuration.inMilliseconds).clamp(0.0, 1.0);
+    final remaining = maxDuration - elapsed;
+    final isNearLimit = remaining.inMinutes < 5;
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final barColor =
+        isNearLimit ? colorScheme.error : colorScheme.primary;
+    final muted = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: isNearLimit ? colorScheme.error : colorScheme.onSurfaceVariant,
+    );
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 48),
+          child: LinearProgressIndicator(
+            value: fraction,
+            color: barColor,
+            backgroundColor: colorScheme.surfaceContainerHighest,
+            minHeight: 3,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Preostalo: ${_formatRemaining(remaining)}',
+          style: muted,
+        ),
+      ],
+    );
+  }
+
+  static String _formatRemaining(Duration d) {
+    if (d.isNegative) return '00:00';
     final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';

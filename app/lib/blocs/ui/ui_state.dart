@@ -28,6 +28,7 @@ class UiState extends Equatable {
     required this.latencyP95Ms,
     this.latest,
     this.finishedSession,
+    this.stoppedByLimit = false,
   });
 
   /// The initial, idle state.
@@ -38,7 +39,8 @@ class UiState extends Equatable {
       latencyP50Ms = 0,
       latencyP95Ms = 0,
       latest = null,
-      finishedSession = null;
+      finishedSession = null,
+      stoppedByLimit = false;
 
   /// Where the session is in its lifecycle.
   final RecordingStatus status;
@@ -62,6 +64,10 @@ class UiState extends Equatable {
   /// [RecordingStatus.saved]; drives navigation to the summary screen.
   final SessionLog? finishedSession;
 
+  /// Whether the session was stopped automatically because it reached the
+  /// maximum allowed duration. False for user-initiated stops.
+  final bool stoppedByLimit;
+
   /// Whether a session is currently recording.
   bool get isRecording => status == RecordingStatus.recording;
 
@@ -76,6 +82,7 @@ class UiState extends Equatable {
     int? latencyP50Ms,
     int? latencyP95Ms,
     SessionLog? finishedSession,
+    bool? stoppedByLimit,
   }) {
     return UiState(
       status: status ?? this.status,
@@ -85,6 +92,7 @@ class UiState extends Equatable {
       latencyP95Ms: latencyP95Ms ?? this.latencyP95Ms,
       latest: latest ?? this.latest,
       finishedSession: finishedSession ?? this.finishedSession,
+      stoppedByLimit: stoppedByLimit ?? this.stoppedByLimit,
     );
   }
 
@@ -97,5 +105,6 @@ class UiState extends Equatable {
     latencyP50Ms,
     latencyP95Ms,
     finishedSession,
+    stoppedByLimit,
   ];
 }

@@ -40,8 +40,16 @@ final class UiPredictionReceived extends UiEvent {
   List<Object?> get props => [prediction];
 }
 
-/// Internal: periodic tick that refreshes the elapsed-time readout.
+/// Internal: periodic tick that refreshes the elapsed-time readout and checks
+/// the session duration limit.
 final class UiTicked extends UiEvent {
   /// Creates the tick event.
   const UiTicked();
+}
+
+/// Internal: the session reached [UiBloc.maxSessionDuration] and was stopped
+/// automatically.
+final class UiSessionLimitReached extends UiEvent {
+  /// Creates the limit-reached event.
+  const UiSessionLimitReached();
 }
