@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
@@ -12,13 +13,54 @@ import 'package:gait_sense/utils/session_summary.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+// ---------------------------------------------------------------------------
+// Top-level isolate entry point
+// ---------------------------------------------------------------------------
+
+/// Aggregated summary data computed off the UI isolate.
+///
+/// [compute] requires a top-level (or static) function and a
+/// [SendPort]-serialisable argument, so the three computations that previously
+/// ran synchronously inside [build] are bundled here and dispatched to a
+/// worker isolate via [compute].  This keeps the UI thread free during the
+/// (potentially >100 ms) signal-processing work on long sessions.
+class _SummaryData {
+  const _SummaryData({
+    required this.totals,
+    required this.timeline,
+    required this.quality,
+  });
+
+  final List<ClassTotal> totals;
+  final List<TimelineSegment> timeline;
+  final SessionQualitySummary quality;
+}
+
+/// Entry point for [compute].  Must be a top-level function.
+_SummaryData _computeSummaryData(SessionLog session) {
+  return _SummaryData(
+    totals: computeClassTotals(session),
+    timeline: computeTimeline(session),
+    quality: computeSessionQualitySummary(session),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Screen
+// ---------------------------------------------------------------------------
+
 /// Read-only summary of a finished recording session.
 ///
-/// Renders the session header, per-class time totals (sorted by occupied time),
-/// grouped-text activity segments, and gait-analysis candidates. Offers JSON
-/// export through the system share sheet and a "new session" action that
-/// returns to the live screen.
-class SessionSummaryScreen extends StatelessWidget {
+/// Heavy aggregation (class totals, timeline, gait cadence) is offloaded to a
+/// worker isolate via [compute] so the UI thread is never blocked, even for
+/// sessions that accumulated tens of thousands of raw IMU samples.  A
+/// [CircularProgressIndicator] is shown while the worker runs.
+///
+/// Renders the session header, per-class time totals (sorted by occupied
+/// time), grouped-text activity segments, and gait-analysis candidates.
+/// Offers JSON export through the system share sheet and a "new session"
+/// action that returns to the live screen.
+class SessionSummaryScreen extends StatefulWidget {
   /// Creates the summary screen for [session].
   const SessionSummaryScreen({required this.session, super.key});
 
@@ -26,10 +68,114 @@ class SessionSummaryScreen extends StatelessWidget {
   final SessionLog session;
 
   @override
+  State<SessionSummaryScreen> createState() => _SessionSummaryScreenState();
+}
+
+class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
+  late final Future<_SummaryData> _summaryFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Kick off the worker immediately; the future is stored so that Flutter
+    // does not re-submit it on every rebuild.
+    _summaryFuture = compute(_computeSummaryData, widget.session);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final totals = computeClassTotals(session);
-    final timeline = computeTimeline(session);
-    final quality = computeSessionQualitySummary(session);
+    return FutureBuilder<_SummaryData>(
+      future: _summaryFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _ErrorScaffold(error: snapshot.error!);
+        }
+        if (!snapshot.hasData) {
+          return const _LoadingScaffold();
+        }
+        return _SummaryScaffold(
+          session: widget.session,
+          data: snapshot.data!,
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loading / error placeholders
+// ---------------------------------------------------------------------------
+
+class _LoadingScaffold extends StatelessWidget {
+  const _LoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Sažetak sesije')),
+      body: const Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _ErrorScaffold extends StatelessWidget {
+  const _ErrorScaffold({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Sažetak sesije')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Nije moguće izračunati sažetak sesije.',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error.toString(),
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Natrag'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main content scaffold
+// ---------------------------------------------------------------------------
+
+class _SummaryScaffold extends StatelessWidget {
+  const _SummaryScaffold({
+    required this.session,
+    required this.data,
+  });
+
+  final SessionLog session;
+  final _SummaryData data;
+
+  @override
+  Widget build(BuildContext context) {
     final hasData = session.predictions.isNotEmpty;
 
     return Scaffold(
@@ -42,7 +188,7 @@ class SessionSummaryScreen extends StatelessWidget {
               children: [
                 _Header(session: session),
                 const SizedBox(height: 24),
-                _QualitySection(summary: quality),
+                _QualitySection(summary: data.quality),
                 if (!hasData) ...[
                   const SizedBox(height: 24),
                   const Text('Nema predikcija u ovoj sesiji.'),
@@ -51,14 +197,15 @@ class SessionSummaryScreen extends StatelessWidget {
                   _Section(
                     title: 'Udio po aktivnosti',
                     children: [
-                      for (final total in totals) _ClassTotalRow(total: total),
+                      for (final total in data.totals)
+                        _ClassTotalRow(total: total),
                     ],
                   ),
                   const SizedBox(height: 24),
                   _Section(
                     title: 'Vremenski slijed',
                     children: [
-                      for (final segment in timeline)
+                      for (final segment in data.timeline)
                         _TimelineRow(segment: segment),
                     ],
                   ),
@@ -135,6 +282,10 @@ class SessionSummaryScreen extends StatelessWidget {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Reusable section widgets (unchanged from before)
+// ---------------------------------------------------------------------------
 
 /// Session start time, duration, and total prediction count.
 class _Header extends StatelessWidget {
@@ -424,6 +575,10 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Formatting helpers (unchanged)
+// ---------------------------------------------------------------------------
 
 String _two(int value) => value.toString().padLeft(2, '0');
 
