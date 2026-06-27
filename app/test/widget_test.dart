@@ -18,12 +18,6 @@ void main() {
     expect(find.text('Start'), findsOneWidget);
   });
 
-  // ---------------------------------------------------------------------------
-  // SessionSummaryScreen is now async: summary data is computed off-thread via
-  // compute(), so tests must call pumpAndSettle() (or pump + fake-async) to
-  // let the Future complete before asserting on the rendered content.
-  // ---------------------------------------------------------------------------
-
   testWidgets('session summary shows a loading indicator before data arrives', (
     tester,
   ) async {
@@ -92,8 +86,7 @@ void main() {
       MaterialApp(home: SessionSummaryScreen(session: session)),
     );
 
-    // Resolve the compute() Future and rebuild.
-    await tester.pumpAndSettle();
+    await pumpUntilFound(tester, find.text('Kadenca (eksperimentalno)'));
 
     expect(find.text('Kadenca (eksperimentalno)'), findsOneWidget);
     expect(find.text('120 koraka/min'), findsOneWidget);
@@ -145,8 +138,10 @@ void main() {
         MaterialApp(home: SessionSummaryScreen(session: session)),
       );
 
-      // Resolve the compute() Future and rebuild.
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.text('Detektirani koraci (eksperimentalno)'),
+      );
 
       expect(
         find.text('Detektirani koraci (eksperimentalno)'),
@@ -185,7 +180,24 @@ void main() {
   });
 }
 
-/// Test harness that exposes the private [_ErrorScaffold] via the public
+Future<void> pumpUntilFound(WidgetTester tester, Finder finder) async {
+  const timeout = Duration(seconds: 5);
+  const interval = Duration(milliseconds: 20);
+  final stopwatch = Stopwatch()..start();
+
+  while (stopwatch.elapsed < timeout) {
+    await tester.runAsync<void>(() async {
+      await Future<void>.delayed(interval);
+    });
+    await tester.pump();
+
+    if (finder.evaluate().isNotEmpty) return;
+  }
+
+  fail('Timed out waiting for async summary content.');
+}
+
+/// Test harness that mirrors the summary error scaffold through the public
 /// [SessionSummaryScreen] API surface — used only to verify the error widget
 /// tree is well-formed.
 class _ErrorScaffoldHarness extends StatelessWidget {

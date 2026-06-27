@@ -242,4 +242,110 @@ void main() {
     expect(state.finishedSession, isNull);
     expect(state.predictionCount, 0);
   });
+
+  group('session duration limit', () {
+    test('auto-stops when elapsed reaches maxSessionDuration', () async {
+      var clock = DateTime.utc(2026);
+      final bloc = UiBloc(
+        controller: controller,
+        repository: repository,
+        now: () => clock,
+        tickInterval: const Duration(hours: 1),
+        maxSessionDuration: const Duration(minutes: 5),
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const UiRecordingStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
+
+      // Advance clock past the limit and fire a tick.
+      clock = DateTime.utc(2026, 1, 1, 0, 5, 1);
+      bloc.add(const UiTicked());
+
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.saved,
+      );
+
+      expect(state.stoppedByLimit, isTrue);
+      expect(controller.stopCount, 1);
+      expect(state.finishedSession, isNotNull);
+    });
+
+    test('stoppedByLimit is false for a user-initiated stop', () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const UiRecordingStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
+      bloc.add(const UiRecordingStopped());
+
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.saved,
+      );
+
+      expect(state.stoppedByLimit, isFalse);
+    });
+
+    test('does not auto-stop before the limit is reached', () async {
+      var clock = DateTime.utc(2026);
+      final bloc = UiBloc(
+        controller: controller,
+        repository: repository,
+        now: () => clock,
+        tickInterval: const Duration(hours: 1),
+        maxSessionDuration: const Duration(minutes: 5),
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const UiRecordingStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
+
+      // Advance clock to just under the limit.
+      clock = DateTime.utc(2026, 1, 1, 0, 4, 59);
+      bloc.add(const UiTicked());
+      await bloc.stream.firstWhere(
+        (s) => s.elapsed == const Duration(minutes: 4, seconds: 59),
+      );
+
+      expect(controller.stopCount, 0);
+      expect(bloc.state.status, RecordingStatus.recording);
+    });
+
+    test('ignores a second limit event if already saving', () async {
+      var clock = DateTime.utc(2026);
+      final bloc = UiBloc(
+        controller: controller,
+        repository: repository,
+        now: () => clock,
+        tickInterval: const Duration(hours: 1),
+        maxSessionDuration: const Duration(minutes: 5),
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const UiRecordingStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
+
+      clock = DateTime.utc(2026, 1, 1, 0, 5, 1);
+      // Fire two ticks past the limit in quick succession.
+      bloc
+        ..add(const UiTicked())
+        ..add(const UiTicked());
+
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.saved,
+      );
+
+      // The service must be stopped exactly once despite two limit events.
+      expect(controller.stopCount, 1);
+      expect(state.stoppedByLimit, isTrue);
+    });
+  });
 }

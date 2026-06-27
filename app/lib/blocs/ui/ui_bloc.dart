@@ -7,6 +7,7 @@ import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/har_model_info.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/recording_controller.dart';
+import 'package:gait_sense/services/session_limit.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
 
 /// Size of the rolling window over which inference-latency percentiles are
@@ -22,19 +23,41 @@ const int _latencyWindow = 60;
 /// prediction into the [SessionLogRepository], and derives the live readouts
 /// (elapsed time, prediction count, rolling latency percentiles) the screen
 /// renders. The sensing/inference pipeline itself runs in the service isolate.
+///
+/// When `elapsed` reaches [maxSessionDuration] the bloc emits
+/// [UiSessionLimitReached] internally, which triggers the same save flow as a
+/// user-initiated stop.
 class UiBloc extends Bloc<UiEvent, UiState> {
-  /// Creates the bloc around its injected dependencies. The clock and tick
-  /// interval are injectable so the elapsed-time logic is deterministic in
-  /// tests.
+  /// Creates the bloc around its injected dependencies. The clock, tick
+  /// interval, and max session duration are injectable so the elapsed-time
+  /// and auto-stop logic are deterministic in tests.
   UiBloc({
-    required this._controller,
-    required this._repository,
-    this._modelInfo = harModelInfo,
-    this._now = DateTime.now,
-    this._tickInterval = const Duration(seconds: 1),
-  }) : super(const UiState.initial()) {
+    required RecordingController controller,
+    required SessionLogRepository repository,
+    Map<String, dynamic> modelInfo = harModelInfo,
+    DateTime Function() now = DateTime.now,
+    Duration tickInterval = const Duration(seconds: 1),
+    Duration maxSessionDuration = defaultMaxSessionDuration,
+  }) : this._(
+         controller,
+         repository,
+         modelInfo,
+         now,
+         tickInterval,
+         maxSessionDuration,
+       );
+
+  UiBloc._(
+    this._controller,
+    this._repository,
+    this._modelInfo,
+    this._now,
+    this._tickInterval,
+    this.maxSessionDuration,
+  ) : super(const UiState.initial()) {
     on<UiRecordingStarted>(_onStarted);
     on<UiRecordingStopped>(_onStopped);
+    on<UiSessionLimitReached>(_onLimitReached);
     on<UiReset>(_onReset);
     on<UiPredictionReceived>(_onPredictionReceived);
     on<UiTicked>(_onTicked);
@@ -45,6 +68,10 @@ class UiBloc extends Bloc<UiEvent, UiState> {
   final Map<String, dynamic> _modelInfo;
   final DateTime Function() _now;
   final Duration _tickInterval;
+
+  /// Maximum allowed session duration. Exposed for widget-layer display
+  /// (e.g. a countdown or progress indicator).
+  final Duration maxSessionDuration;
 
   StreamSubscription<ActivityPrediction>? _predictionSubscription;
   StreamSubscription<SensorSample>? _sampleSubscription;
@@ -84,6 +111,21 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     UiRecordingStopped event,
     Emitter<UiState> emit,
   ) async {
+    await _stopSession(emit, stoppedByLimit: false);
+  }
+
+  Future<void> _onLimitReached(
+    UiSessionLimitReached event,
+    Emitter<UiState> emit,
+  ) async {
+    await _stopSession(emit, stoppedByLimit: true);
+  }
+
+  /// Common teardown path shared by user-initiated and limit-triggered stops.
+  Future<void> _stopSession(
+    Emitter<UiState> emit, {
+    required bool stoppedByLimit,
+  }) async {
     if (state.status != RecordingStatus.recording) return;
     _ticker?.cancel();
     _ticker = null;
@@ -102,6 +144,7 @@ class UiBloc extends Bloc<UiEvent, UiState> {
       state.copyWith(
         status: RecordingStatus.saved,
         finishedSession: _repository.lastSession,
+        stoppedByLimit: stoppedByLimit,
       ),
     );
   }
@@ -141,7 +184,19 @@ class UiBloc extends Bloc<UiEvent, UiState> {
 
   void _onTicked(UiTicked event, Emitter<UiState> emit) {
     if (state.status != RecordingStatus.recording) return;
-    emit(state.copyWith(elapsed: _now().difference(_startedAt)));
+    final now = _now();
+    final elapsed = now.difference(_startedAt);
+    emit(state.copyWith(elapsed: elapsed));
+
+    // Auto-stop when the hard limit is reached. Dispatched as an event so the
+    // save flow runs through the normal handler and remains testable.
+    if (hasReachedSessionLimit(
+      startedAt: _startedAt,
+      now: now,
+      maxDuration: maxSessionDuration,
+    )) {
+      add(const UiSessionLimitReached());
+    }
   }
 
   /// Nearest-rank percentile — the inverse-CDF estimator (Definition 1 in

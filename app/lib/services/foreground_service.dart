@@ -8,6 +8,7 @@ import 'package:gait_sense/services/activity_smoother.dart';
 import 'package:gait_sense/services/feature_pipeline.dart';
 import 'package:gait_sense/services/har_inference.dart';
 import 'package:gait_sense/services/sensor_service.dart';
+import 'package:gait_sense/services/session_limit.dart';
 
 /// Entry point of the foreground-service isolate.
 ///
@@ -58,14 +59,22 @@ class _HarTaskHandler extends TaskHandler {
   Future<void> _inferenceChain = Future<void>.value();
 
   DateTime _startedAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _limitTimer;
+  bool _limitStopRequested = false;
   int _predictionCount = 0;
   String _lastLabel = '—';
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     _startedAt = timestamp;
+    _limitStopRequested = false;
     _predictionCount = 0;
     _lastLabel = '—';
+    _limitTimer?.cancel();
+    _limitTimer = Timer(
+      defaultMaxSessionDuration,
+      () => unawaited(_stopBecauseLimit()),
+    );
     // Loading the model here verifies tflite_flutter initialises in the service
     // isolate; sensors_plus likewise streams from this isolate.
     _inference = await HarInference.load();
@@ -76,6 +85,11 @@ class _HarTaskHandler extends TaskHandler {
   }
 
   void _onSample(SensorSample sample) {
+    if (_stopIfLimitReached(sample.timestamp) ||
+        _stopIfLimitReached(DateTime.now())) {
+      return;
+    }
+
     FlutterForegroundTask.sendDataToMain(
       jsonEncode({
         ForegroundMessage.eventKey: ForegroundMessage.sampleEvent,
@@ -92,9 +106,17 @@ class _HarTaskHandler extends TaskHandler {
   }
 
   Future<void> _classify(FeatureWindow window) async {
+    if (_limitStopRequested ||
+        _isAtLimit(window.endTimestamp) ||
+        _isAtLimit(DateTime.now())) {
+      return;
+    }
+
     final inference = _inference;
     if (inference == null) return;
     final rawPrediction = await inference.predict(window);
+    if (_limitStopRequested || _isAtLimit(DateTime.now())) return;
+
     final prediction = _smoother.add(rawPrediction);
     _predictionCount++;
     _lastLabel = prediction.label;
@@ -108,6 +130,8 @@ class _HarTaskHandler extends TaskHandler {
 
   @override
   void onRepeatEvent(DateTime timestamp) {
+    if (_stopIfLimitReached(timestamp)) return;
+
     // Periodic refresh of the notification only — the data pipeline is driven
     // by the sensor stream, not by this callback.
     final elapsed = timestamp.difference(_startedAt);
@@ -123,11 +147,42 @@ class _HarTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
+    _limitStopRequested = true;
+    _limitTimer?.cancel();
+    _limitTimer = null;
     await _sampleSubscription?.cancel();
     _sampleSubscription = null;
     await _sensorService.dispose();
     await _inference?.close();
     _inference = null;
+  }
+
+  bool _stopIfLimitReached(DateTime timestamp) {
+    if (!_isAtLimit(timestamp)) return false;
+    unawaited(_stopBecauseLimit());
+    return true;
+  }
+
+  bool _isAtLimit(DateTime timestamp) {
+    return hasReachedSessionLimit(
+      startedAt: _startedAt,
+      now: timestamp,
+    );
+  }
+
+  Future<void> _stopBecauseLimit() async {
+    if (_limitStopRequested) return;
+    _limitStopRequested = true;
+    _limitTimer?.cancel();
+    _limitTimer = null;
+
+    await _sampleSubscription?.cancel();
+    _sampleSubscription = null;
+    await _sensorService.stop();
+    _extractor.reset();
+    _smoother.reset();
+
+    await FlutterForegroundTask.stopService();
   }
 }
 
