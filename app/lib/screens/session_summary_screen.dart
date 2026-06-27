@@ -20,8 +20,8 @@ import 'package:share_plus/share_plus.dart';
 /// Aggregated summary data computed off the UI isolate.
 ///
 /// [compute] requires a top-level (or static) function and a
-/// [SendPort]-serialisable argument, so the three computations that previously
-/// ran synchronously inside [build] are bundled here and dispatched to a
+/// SendPort-serialisable argument, so the three computations that previously
+/// ran synchronously inside `build` are bundled here and dispatched to a
 /// worker isolate via [compute].  This keeps the UI thread free during the
 /// (potentially >100 ms) signal-processing work on long sessions.
 class _SummaryData {

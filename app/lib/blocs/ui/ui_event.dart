@@ -47,7 +47,7 @@ final class UiTicked extends UiEvent {
   const UiTicked();
 }
 
-/// Internal: the session reached [UiBloc.maxSessionDuration] and was stopped
+/// Internal: the session reached `UiBloc.maxSessionDuration` and was stopped
 /// automatically.
 final class UiSessionLimitReached extends UiEvent {
   /// Creates the limit-reached event.

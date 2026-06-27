@@ -38,7 +38,8 @@ class LiveHarScreen extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Sesija je automatski zaustavljena — dostignut je limit od 30 minuta.',
+                'Sesija je automatski zaustavljena — dostignut je limit od '
+                '30 minuta.',
               ),
               duration: Duration(seconds: 5),
             ),
@@ -214,14 +215,13 @@ class _SessionLimitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fraction =
-        (elapsed.inMilliseconds / maxDuration.inMilliseconds).clamp(0.0, 1.0);
+    final fraction = (elapsed.inMilliseconds / maxDuration.inMilliseconds)
+        .clamp(0.0, 1.0);
     final remaining = maxDuration - elapsed;
     final isNearLimit = remaining.inMinutes < 5;
 
     final colorScheme = Theme.of(context).colorScheme;
-    final barColor =
-        isNearLimit ? colorScheme.error : colorScheme.primary;
+    final barColor = isNearLimit ? colorScheme.error : colorScheme.primary;
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: isNearLimit ? colorScheme.error : colorScheme.onSurfaceVariant,
     );

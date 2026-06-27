@@ -32,7 +32,7 @@ const Duration defaultMaxSessionDuration = Duration(minutes: 30);
 /// (elapsed time, prediction count, rolling latency percentiles) the screen
 /// renders. The sensing/inference pipeline itself runs in the service isolate.
 ///
-/// When [elapsed] reaches [maxSessionDuration] the bloc emits
+/// When `elapsed` reaches [maxSessionDuration] the bloc emits
 /// [UiSessionLimitReached] internally, which triggers the same save flow as a
 /// user-initiated stop.
 class UiBloc extends Bloc<UiEvent, UiState> {
@@ -45,13 +45,24 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     Map<String, dynamic> modelInfo = harModelInfo,
     DateTime Function() now = DateTime.now,
     Duration tickInterval = const Duration(seconds: 1),
-    this.maxSessionDuration = defaultMaxSessionDuration,
-  })  : _controller = controller,
-        _repository = repository,
-        _modelInfo = modelInfo,
-        _now = now,
-        _tickInterval = tickInterval,
-        super(const UiState.initial()) {
+    Duration maxSessionDuration = defaultMaxSessionDuration,
+  }) : this._(
+         controller,
+         repository,
+         modelInfo,
+         now,
+         tickInterval,
+         maxSessionDuration,
+       );
+
+  UiBloc._(
+    this._controller,
+    this._repository,
+    this._modelInfo,
+    this._now,
+    this._tickInterval,
+    this.maxSessionDuration,
+  ) : super(const UiState.initial()) {
     on<UiRecordingStarted>(_onStarted);
     on<UiRecordingStopped>(_onStopped);
     on<UiSessionLimitReached>(_onLimitReached);

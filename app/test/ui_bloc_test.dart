@@ -242,7 +242,6 @@ void main() {
     expect(state.finishedSession, isNull);
     expect(state.predictionCount, 0);
   });
-}
 
   group('session duration limit', () {
     test('auto-stops when elapsed reaches maxSessionDuration', () async {
@@ -257,7 +256,9 @@ void main() {
       addTearDown(bloc.close);
 
       bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
 
       // Advance clock past the limit and fire a tick.
       clock = DateTime.utc(2026, 1, 1, 0, 5, 1);
@@ -277,7 +278,9 @@ void main() {
       addTearDown(bloc.close);
 
       bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
       bloc.add(const UiRecordingStopped());
 
       final state = await bloc.stream.firstWhere(
@@ -299,7 +302,9 @@ void main() {
       addTearDown(bloc.close);
 
       bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
 
       // Advance clock to just under the limit.
       clock = DateTime.utc(2026, 1, 1, 0, 4, 59);
@@ -324,7 +329,9 @@ void main() {
       addTearDown(bloc.close);
 
       bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.recording,
+      );
 
       clock = DateTime.utc(2026, 1, 1, 0, 5, 1);
       // Fire two ticks past the limit in quick succession.
@@ -341,3 +348,4 @@ void main() {
       expect(state.stoppedByLimit, isTrue);
     });
   });
+}
