@@ -1,14 +1,29 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/app.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/screens/session_summary_screen.dart';
+import 'package:gait_sense/services/user_preferences_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Wraps [child] in a [RepositoryProvider] that serves a real
+/// [UserPreferencesRepository] backed by an in-memory SharedPreferences store.
+Widget _withPrefs(Widget child) {
+  return RepositoryProvider<UserPreferencesRepository>(
+    create: (_) => UserPreferencesRepository(),
+    child: MaterialApp(home: child),
+  );
+}
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
   testWidgets('app renders the live HAR screen with a Start control', (
     tester,
   ) async {
@@ -30,7 +45,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(home: SessionSummaryScreen(session: session)),
+      _withPrefs(SessionSummaryScreen(session: session)),
     );
 
     // First frame: Future not yet resolved → loading scaffold is visible.
@@ -83,7 +98,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(home: SessionSummaryScreen(session: session)),
+      _withPrefs(SessionSummaryScreen(session: session)),
     );
 
     await pumpUntilFound(tester, find.text('Kadenca (eksperimentalno)'));
@@ -135,7 +150,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(home: SessionSummaryScreen(session: session)),
+        _withPrefs(SessionSummaryScreen(session: session)),
       );
 
       await pumpUntilFound(

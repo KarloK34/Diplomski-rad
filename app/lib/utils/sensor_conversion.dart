@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:gait_sense/models/sensor_sample.dart';
 
 /// Standard gravity (m/s²). sensors_plus reports acceleration in m/s² on both
@@ -67,4 +69,29 @@ class SensorConversion {
       rotationRateZ: rotationRate.z,
     );
   }
+}
+
+/// Projects the user acceleration of [sample] onto the gravity direction,
+/// returning the signed vertical component in the same units as
+/// [SensorSample.userAccelerationX] (standard gravity, g).
+///
+/// The projection `aV = u_a · g_hat` isolates the component of movement
+/// aligned with gravity regardless of how the phone is oriented in the pocket.
+/// It is used by both the feature pipeline (as the `a_v` channel) and the
+/// walking-speed estimator (as the vertical displacement signal). Centralising
+/// the computation here ensures both callers use the identical formula.
+///
+/// Returns 0 when the gravity vector is near-zero (sensor failure or free
+/// fall), matching the `eps` guard in the feature pipeline.
+double verticalAcceleration(SensorSample sample) {
+  final gNorm = sqrt(
+    sample.gravityX * sample.gravityX +
+        sample.gravityY * sample.gravityY +
+        sample.gravityZ * sample.gravityZ,
+  );
+  if (gNorm < 1e-9) return 0;
+  return (sample.userAccelerationX * sample.gravityX +
+          sample.userAccelerationY * sample.gravityY +
+          sample.userAccelerationZ * sample.gravityZ) /
+      gNorm;
 }
