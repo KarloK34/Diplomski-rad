@@ -120,7 +120,15 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('Regularnost signala (eksperimentalno)'),
+      find.text('ProsjeÄno vrijeme iskoraka (eksperimentalno)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Varijabilnost vremena iskoraka (eksperimentalno)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Regularnost signala (indikator kvalitete)'),
       findsOneWidget,
     );
     expect(find.text('Razlog'), findsNothing);

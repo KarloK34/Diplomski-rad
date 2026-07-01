@@ -519,6 +519,11 @@ void main() {
         (sum, result) =>
             sum + computeGaitTemporalParameters(result)!.stepIntervalCount,
       );
+      final totalStrideIntervals = results.fold<int>(
+        0,
+        (sum, result) =>
+            sum + computeGaitTemporalParameters(result)!.strideIntervalCount,
+      );
       final expectedCadence =
           results.fold<double>(
             0,
@@ -544,6 +549,10 @@ void main() {
       expect(
         summary.gaitCadence.temporalParameters!.stepIntervalCount,
         totalIntervals,
+      );
+      expect(
+        summary.gaitCadence.temporalParameters!.strideIntervalCount,
+        totalStrideIntervals,
       );
       expect(
         summary.gaitCadence.averageCadenceStepsPerMinute,

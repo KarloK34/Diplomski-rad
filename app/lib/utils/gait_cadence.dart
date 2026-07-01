@@ -112,6 +112,22 @@ const double defaultCadenceStrongEstimateAgreement = 0.05;
 /// This count is a project heuristic and is not clinically validated.
 const int defaultCadenceConsistentEstimateMinimumSteps = 12;
 
+/// Lower median-relative interval bound used for temporal variability.
+///
+/// This project quality rule reduces the influence of isolated duplicate peak
+/// detections on temporal descriptors. It is not a clinically validated gait
+/// variability filter.
+const double defaultTemporalIntervalLowerMedianRatio = 0.5;
+
+/// Upper median-relative interval bound used for temporal variability.
+///
+/// This project quality rule reduces the influence of missed peak detections
+/// on temporal descriptors. Zijlstra & Hof (2003),
+/// https://doi.org/10.1016/S0966-6362(02)00190-X, emphasize that temporal gait
+/// parameters depend on correctly identified subsequent gait events; this app
+/// treats the ratio itself as an unvalidated robustness guard.
+const double defaultTemporalIntervalUpperMedianRatio = 1.5;
+
 /// Relative strength required to prefer a shorter autocorrelation maximum.
 ///
 /// This harmonic-selection ratio is a project heuristic. Preferring the
@@ -265,13 +281,18 @@ class GaitTemporalParameters extends Equatable {
     required this.stepTimeCoefficientOfVariation,
     required this.minimumStepTime,
     required this.maximumStepTime,
+    required this.strideIntervalCount,
+    required this.meanStrideTime,
+    required this.strideTimeStandardDeviation,
+    required this.strideTimeCoefficientOfVariation,
     required this.meanInstantCadenceStepsPerMinute,
     required this.instantCadenceStandardDeviationStepsPerMinute,
     required this.instantCadenceCoefficientOfVariation,
     required this.gaitRegularity,
   });
 
-  /// Number of consecutive step-to-step intervals used.
+  /// Number of consecutive step-to-step intervals used after consistency
+  /// filtering.
   final int stepIntervalCount;
 
   /// Mean duration between accepted consecutive steps.
@@ -294,6 +315,28 @@ class GaitTemporalParameters extends Equatable {
 
   /// Longest accepted step-to-step interval.
   final Duration maximumStepTime;
+
+  /// Number of same-side step-event intervals used for stride timing after
+  /// consistency filtering.
+  ///
+  /// With one phone in the pocket the app does not label left/right foot
+  /// contacts. The stride interval is therefore approximated as the interval
+  /// between every second accepted step event, following the stride-cycle
+  /// timing premise in Zijlstra & Hof (2003),
+  /// https://doi.org/10.1016/S0966-6362(02)00190-X.
+  final int strideIntervalCount;
+
+  /// Mean duration between every second accepted step event.
+  final Duration? meanStrideTime;
+
+  /// Population standard deviation of stride-time durations.
+  final Duration? strideTimeStandardDeviation;
+
+  /// Stride-time standard deviation divided by mean stride time.
+  ///
+  /// This normalized variability metric is a project display rule and is not
+  /// clinically validated.
+  final double? strideTimeCoefficientOfVariation;
 
   /// Mean of per-interval cadence values.
   final double meanInstantCadenceStepsPerMinute;
@@ -325,6 +368,10 @@ class GaitTemporalParameters extends Equatable {
     stepTimeCoefficientOfVariation,
     minimumStepTime,
     maximumStepTime,
+    strideIntervalCount,
+    meanStrideTime,
+    strideTimeStandardDeviation,
+    strideTimeCoefficientOfVariation,
     meanInstantCadenceStepsPerMinute,
     instantCadenceStandardDeviationStepsPerMinute,
     instantCadenceCoefficientOfVariation,
@@ -341,9 +388,15 @@ GaitTemporalParameters? computeGaitTemporalParameters(
   GaitCadenceResult result,
 ) {
   if (!result.isComputed) return null;
-  final intervalUs = _stepIntervalMicroseconds(result.detectedStepOffsets);
+  final intervalUs = _filterTemporalIntervals(
+    _stepIntervalMicroseconds(result.detectedStepOffsets),
+  );
+  final strideIntervalUs = _filterTemporalIntervals(
+    _strideIntervalMicroseconds(result.detectedStepOffsets),
+  );
   return _temporalParametersFromIntervals(
     intervalUs,
+    strideIntervalUs: strideIntervalUs,
     gaitRegularity: result.periodicity,
   );
 }
@@ -357,6 +410,7 @@ GaitTemporalParameters? summarizeGaitTemporalParameters(
   List<GaitCadenceResult> results,
 ) {
   final intervalUs = <int>[];
+  final strideIntervalUs = <int>[];
   var weightedRegularity = 0.0;
   var regularityWeight = 0;
 
@@ -365,17 +419,24 @@ GaitTemporalParameters? summarizeGaitTemporalParameters(
     final resultIntervals = _stepIntervalMicroseconds(
       result.detectedStepOffsets,
     );
-    intervalUs.addAll(resultIntervals);
+    final filteredResultIntervals = _filterTemporalIntervals(resultIntervals);
+    intervalUs.addAll(filteredResultIntervals);
+    strideIntervalUs.addAll(
+      _filterTemporalIntervals(
+        _strideIntervalMicroseconds(result.detectedStepOffsets),
+      ),
+    );
 
     final periodicity = result.periodicity;
-    if (periodicity != null && resultIntervals.isNotEmpty) {
-      weightedRegularity += periodicity * resultIntervals.length;
-      regularityWeight += resultIntervals.length;
+    if (periodicity != null && filteredResultIntervals.isNotEmpty) {
+      weightedRegularity += periodicity * filteredResultIntervals.length;
+      regularityWeight += filteredResultIntervals.length;
     }
   }
 
   return _temporalParametersFromIntervals(
     intervalUs,
+    strideIntervalUs: strideIntervalUs,
     gaitRegularity: regularityWeight == 0
         ? null
         : weightedRegularity / regularityWeight,
@@ -503,8 +564,65 @@ GaitCadenceResult analyzeGaitCadenceSamples(
     );
   }
 
+  final medianSampleInterval = _medianSampleInterval(samples);
+  final reportablePeriodicity =
+      minimumPeriodicity * defaultCadenceReportablePeriodicityFraction;
+  final candidates = [
+    _analyzeCadenceSignal(
+      samples,
+      signal: _CadenceSignal.userAccelerationMagnitude,
+      sampleIndexOffset: sampleIndexOffset,
+      duration: duration,
+      medianSampleInterval: medianSampleInterval,
+      lowPassCutoffHz: lowPassCutoffHz,
+      minimumCadenceStepsPerMinute: minimumCadenceStepsPerMinute,
+      maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
+      minimumPeakIntervalFraction: minimumPeakIntervalFraction,
+      peakThresholdStdMultiplier: peakThresholdStdMultiplier,
+      minimumPeriodicity: minimumPeriodicity,
+      reportablePeriodicity: reportablePeriodicity,
+      maximumEstimateDisagreement: maximumEstimateDisagreement,
+      minimumDetectedSteps: minimumDetectedSteps,
+    ),
+    _analyzeCadenceSignal(
+      samples,
+      signal: _CadenceSignal.angularVelocityMagnitude,
+      sampleIndexOffset: sampleIndexOffset,
+      duration: duration,
+      medianSampleInterval: medianSampleInterval,
+      lowPassCutoffHz: lowPassCutoffHz,
+      minimumCadenceStepsPerMinute: minimumCadenceStepsPerMinute,
+      maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
+      minimumPeakIntervalFraction: minimumPeakIntervalFraction,
+      peakThresholdStdMultiplier: peakThresholdStdMultiplier,
+      minimumPeriodicity: minimumPeriodicity,
+      reportablePeriodicity: reportablePeriodicity,
+      maximumEstimateDisagreement: maximumEstimateDisagreement,
+      minimumDetectedSteps: minimumDetectedSteps,
+    ),
+  ];
+
+  return _selectCadenceCandidate(candidates).result;
+}
+
+_CadenceCandidate _analyzeCadenceSignal(
+  List<SensorSample> samples, {
+  required _CadenceSignal signal,
+  required int sampleIndexOffset,
+  required Duration duration,
+  required Duration medianSampleInterval,
+  required double lowPassCutoffHz,
+  required double minimumCadenceStepsPerMinute,
+  required double maximumCadenceStepsPerMinute,
+  required double minimumPeakIntervalFraction,
+  required double peakThresholdStdMultiplier,
+  required double minimumPeriodicity,
+  required double reportablePeriodicity,
+  required double maximumEstimateDisagreement,
+  required int minimumDetectedSteps,
+}) {
   final magnitudes = [
-    for (final sample in samples) _userAccelerationMagnitude(sample),
+    for (final sample in samples) _cadenceSignalValue(sample, signal),
   ];
   final filtered = filterCadenceLowPassButterworth(
     samples,
@@ -516,15 +634,17 @@ GaitCadenceResult analyzeGaitCadenceSamples(
   final threshold = filteredMean + filteredStd * peakThresholdStdMultiplier;
 
   if (filteredStd <= 1e-9) {
-    return _notComputed(
-      duration: duration,
-      adaptiveThreshold: threshold,
-      status: GaitCadenceStatus.insufficientSignal,
-      reason: tooFewCadencePeaksReason,
+    return _CadenceCandidate(
+      signal: signal,
+      result: _notComputed(
+        duration: duration,
+        adaptiveThreshold: threshold,
+        status: GaitCadenceStatus.insufficientSignal,
+        reason: tooFewCadencePeaksReason,
+      ),
     );
   }
 
-  final medianSampleInterval = _medianSampleInterval(samples);
   final periodEstimate = _estimateDominantPeriod(
     filtered,
     sampleInterval: medianSampleInterval,
@@ -532,23 +652,27 @@ GaitCadenceResult analyzeGaitCadenceSamples(
     maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
   );
   if (periodEstimate == null) {
-    return _notComputed(
-      duration: duration,
-      adaptiveThreshold: threshold,
-      status: GaitCadenceStatus.insufficientSignal,
-      reason: lowCadencePeriodicityReason,
+    return _CadenceCandidate(
+      signal: signal,
+      result: _notComputed(
+        duration: duration,
+        adaptiveThreshold: threshold,
+        status: GaitCadenceStatus.insufficientSignal,
+        reason: lowCadencePeriodicityReason,
+      ),
     );
   }
-  final reportablePeriodicity =
-      minimumPeriodicity * defaultCadenceReportablePeriodicityFraction;
   if (periodEstimate.periodicity < reportablePeriodicity) {
-    return _notComputed(
-      duration: duration,
-      dominantPeriod: periodEstimate.period,
-      periodicity: periodEstimate.periodicity,
-      adaptiveThreshold: threshold,
-      status: GaitCadenceStatus.insufficientSignal,
-      reason: lowCadencePeriodicityReason,
+    return _CadenceCandidate(
+      signal: signal,
+      result: _notComputed(
+        duration: duration,
+        dominantPeriod: periodEstimate.period,
+        periodicity: periodEstimate.periodicity,
+        adaptiveThreshold: threshold,
+        status: GaitCadenceStatus.insufficientSignal,
+        reason: lowCadencePeriodicityReason,
+      ),
     );
   }
 
@@ -572,22 +696,25 @@ GaitCadenceResult analyzeGaitCadenceSamples(
   ];
 
   if (peaks.length < minimumDetectedSteps) {
-    return GaitCadenceResult(
-      stepCount: peaks.length,
-      cadenceStepsPerMinute: 0,
-      peakCadenceStepsPerMinute: null,
-      periodCadenceStepsPerMinute: periodEstimate.cadenceStepsPerMinute,
-      dominantPeriod: periodEstimate.period,
-      periodicity: periodEstimate.periodicity,
-      adaptiveThreshold: threshold,
-      minimumPeakInterval: minimumPeakInterval,
-      duration: duration,
-      detectedStepSampleIndices: List.unmodifiable(detectedStepSampleIndices),
-      detectedStepOffsets: List.unmodifiable(detectedStepOffsets),
-      status: GaitCadenceStatus.insufficientSignal,
-      reason: tooFewCadencePeaksReason,
-      confidence: GaitCadenceConfidence.low,
-      confidenceReason: limitedCadenceEvidenceReason,
+    return _CadenceCandidate(
+      signal: signal,
+      result: GaitCadenceResult(
+        stepCount: peaks.length,
+        cadenceStepsPerMinute: 0,
+        peakCadenceStepsPerMinute: null,
+        periodCadenceStepsPerMinute: periodEstimate.cadenceStepsPerMinute,
+        dominantPeriod: periodEstimate.period,
+        periodicity: periodEstimate.periodicity,
+        adaptiveThreshold: threshold,
+        minimumPeakInterval: minimumPeakInterval,
+        duration: duration,
+        detectedStepSampleIndices: List.unmodifiable(detectedStepSampleIndices),
+        detectedStepOffsets: List.unmodifiable(detectedStepOffsets),
+        status: GaitCadenceStatus.insufficientSignal,
+        reason: tooFewCadencePeaksReason,
+        confidence: GaitCadenceConfidence.low,
+        confidenceReason: limitedCadenceEvidenceReason,
+      ),
     );
   }
 
@@ -595,14 +722,17 @@ GaitCadenceResult analyzeGaitCadenceSamples(
   final lastPeakTime = samples[peaks.last.sampleIndex].timestamp;
   final peakSpan = lastPeakTime.difference(firstPeakTime);
   if (peakSpan <= Duration.zero) {
-    return _notComputed(
-      duration: duration,
-      dominantPeriod: periodEstimate.period,
-      periodicity: periodEstimate.periodicity,
-      adaptiveThreshold: threshold,
-      minimumPeakInterval: minimumPeakInterval,
-      status: GaitCadenceStatus.invalidTimestamps,
-      reason: invalidCadenceTimestampsReason,
+    return _CadenceCandidate(
+      signal: signal,
+      result: _notComputed(
+        duration: duration,
+        dominantPeriod: periodEstimate.period,
+        periodicity: periodEstimate.periodicity,
+        adaptiveThreshold: threshold,
+        minimumPeakInterval: minimumPeakInterval,
+        status: GaitCadenceStatus.invalidTimestamps,
+        reason: invalidCadenceTimestampsReason,
+      ),
     );
   }
 
@@ -620,23 +750,85 @@ GaitCadenceResult analyzeGaitCadenceSamples(
     maximumEstimateDisagreement: maximumEstimateDisagreement,
   );
 
-  return GaitCadenceResult(
-    stepCount: peaks.length,
-    cadenceStepsPerMinute: peakCadence,
-    peakCadenceStepsPerMinute: peakCadence,
-    periodCadenceStepsPerMinute: periodCadence,
-    dominantPeriod: periodEstimate.period,
-    periodicity: periodEstimate.periodicity,
-    adaptiveThreshold: threshold,
-    minimumPeakInterval: minimumPeakInterval,
-    duration: duration,
-    detectedStepSampleIndices: List.unmodifiable(detectedStepSampleIndices),
-    detectedStepOffsets: List.unmodifiable(detectedStepOffsets),
-    status: GaitCadenceStatus.computed,
-    reason: null,
-    confidence: confidenceAssessment.confidence,
-    confidenceReason: confidenceAssessment.reason,
+  return _CadenceCandidate(
+    signal: signal,
+    result: GaitCadenceResult(
+      stepCount: peaks.length,
+      cadenceStepsPerMinute: peakCadence,
+      peakCadenceStepsPerMinute: peakCadence,
+      periodCadenceStepsPerMinute: periodCadence,
+      dominantPeriod: periodEstimate.period,
+      periodicity: periodEstimate.periodicity,
+      adaptiveThreshold: threshold,
+      minimumPeakInterval: minimumPeakInterval,
+      duration: duration,
+      detectedStepSampleIndices: List.unmodifiable(detectedStepSampleIndices),
+      detectedStepOffsets: List.unmodifiable(detectedStepOffsets),
+      status: GaitCadenceStatus.computed,
+      reason: null,
+      confidence: confidenceAssessment.confidence,
+      confidenceReason: confidenceAssessment.reason,
+    ),
   );
+}
+
+_CadenceCandidate _selectCadenceCandidate(List<_CadenceCandidate> candidates) {
+  final computed = [
+    for (final candidate in candidates)
+      if (candidate.result.isComputed) candidate,
+  ];
+  if (computed.isEmpty) {
+    return candidates.first;
+  }
+
+  return computed.reduce(_betterCadenceCandidate);
+}
+
+_CadenceCandidate _betterCadenceCandidate(
+  _CadenceCandidate left,
+  _CadenceCandidate right,
+) {
+  final leftResult = left.result;
+  final rightResult = right.result;
+  final byConfidence =
+      _confidenceRank(leftResult.confidence) -
+      _confidenceRank(rightResult.confidence);
+  if (byConfidence != 0) return byConfidence > 0 ? left : right;
+
+  final leftPeriodicity = leftResult.periodicity ?? 0;
+  final rightPeriodicity = rightResult.periodicity ?? 0;
+  final periodicityDifference = leftPeriodicity - rightPeriodicity;
+  if (periodicityDifference.abs() > 0.05) {
+    return periodicityDifference > 0 ? left : right;
+  }
+
+  final leftDisagreement = _cadenceEstimateDisagreement(leftResult);
+  final rightDisagreement = _cadenceEstimateDisagreement(rightResult);
+  final disagreementDifference = leftDisagreement - rightDisagreement;
+  if (disagreementDifference.abs() > 0.05) {
+    return disagreementDifference < 0 ? left : right;
+  }
+
+  if (left.signal == _CadenceSignal.userAccelerationMagnitude) return left;
+  if (right.signal == _CadenceSignal.userAccelerationMagnitude) return right;
+  return left;
+}
+
+int _confidenceRank(GaitCadenceConfidence confidence) {
+  return switch (confidence) {
+    GaitCadenceConfidence.low => 0,
+    GaitCadenceConfidence.moderate => 1,
+    GaitCadenceConfidence.high => 2,
+  };
+}
+
+double _cadenceEstimateDisagreement(GaitCadenceResult result) {
+  final peakCadence = result.peakCadenceStepsPerMinute;
+  final periodCadence = result.periodCadenceStepsPerMinute;
+  if (peakCadence == null || periodCadence == null || periodCadence <= 0) {
+    return double.infinity;
+  }
+  return (peakCadence - periodCadence).abs() / periodCadence;
 }
 
 GaitCadenceResult _notComputed({
@@ -680,19 +872,50 @@ List<int> _stepIntervalMicroseconds(List<Duration> stepOffsets) {
   return intervalUs;
 }
 
-GaitTemporalParameters? _temporalParametersFromIntervals(
-  List<int> intervalUs, {
-  required double? gaitRegularity,
-}) {
-  if (intervalUs.isEmpty) return null;
+List<int> _strideIntervalMicroseconds(List<Duration> stepOffsets) {
+  final intervalUs = <int>[];
+  for (var i = 2; i < stepOffsets.length; i++) {
+    final interval = stepOffsets[i] - stepOffsets[i - 2];
+    if (interval > Duration.zero) {
+      intervalUs.add(interval.inMicroseconds);
+    }
+  }
+  return intervalUs;
+}
+
+List<int> _filterTemporalIntervals(List<int> intervalUs) {
+  if (intervalUs.length < 5) return intervalUs;
 
   final intervalValues = [
     for (final interval in intervalUs) interval.toDouble(),
   ];
-  final meanIntervalUs = _mean(intervalValues);
-  if (meanIntervalUs <= 0) return null;
+  final medianUs = _medianNumeric(intervalValues);
+  if (medianUs <= 0) return intervalUs;
 
-  final stepTimeStdUs = _standardDeviation(intervalValues, meanIntervalUs);
+  final lower = medianUs * defaultTemporalIntervalLowerMedianRatio;
+  final upper = medianUs * defaultTemporalIntervalUpperMedianRatio;
+  final filtered = [
+    for (final interval in intervalUs)
+      if (interval > lower && interval < upper) interval,
+  ];
+
+  if (filtered.length < (intervalUs.length / 2).ceil()) {
+    return intervalUs;
+  }
+  return filtered;
+}
+
+GaitTemporalParameters? _temporalParametersFromIntervals(
+  List<int> intervalUs, {
+  required List<int> strideIntervalUs,
+  required double? gaitRegularity,
+}) {
+  if (intervalUs.isEmpty) return null;
+
+  final stepStats = _intervalStatistics(intervalUs);
+  if (stepStats == null) return null;
+  final strideStats = _intervalStatistics(strideIntervalUs);
+
   final instantCadenceValues = [
     for (final interval in intervalUs)
       Duration.microsecondsPerMinute / interval,
@@ -705,18 +928,44 @@ GaitTemporalParameters? _temporalParametersFromIntervals(
 
   return GaitTemporalParameters(
     stepIntervalCount: intervalUs.length,
-    meanStepTime: _durationFromMicroseconds(meanIntervalUs),
-    medianStepTime: _durationFromMicroseconds(_medianNumeric(intervalValues)),
-    stepTimeStandardDeviation: _durationFromMicroseconds(stepTimeStdUs),
-    stepTimeCoefficientOfVariation: stepTimeStdUs / meanIntervalUs,
-    minimumStepTime: Duration(microseconds: intervalUs.reduce(math.min)),
-    maximumStepTime: Duration(microseconds: intervalUs.reduce(math.max)),
+    meanStepTime: stepStats.mean,
+    medianStepTime: stepStats.median,
+    stepTimeStandardDeviation: stepStats.standardDeviation,
+    stepTimeCoefficientOfVariation: stepStats.coefficientOfVariation,
+    minimumStepTime: stepStats.minimum,
+    maximumStepTime: stepStats.maximum,
+    strideIntervalCount: strideIntervalUs.length,
+    meanStrideTime: strideStats?.mean,
+    strideTimeStandardDeviation: strideStats?.standardDeviation,
+    strideTimeCoefficientOfVariation: strideStats?.coefficientOfVariation,
     meanInstantCadenceStepsPerMinute: meanInstantCadence,
     instantCadenceStandardDeviationStepsPerMinute: instantCadenceStd,
     instantCadenceCoefficientOfVariation: meanInstantCadence <= 0
         ? 0
         : instantCadenceStd / meanInstantCadence,
     gaitRegularity: gaitRegularity,
+  );
+}
+
+_IntervalStatistics? _intervalStatistics(List<int> intervalUs) {
+  if (intervalUs.isEmpty) return null;
+  final intervalValues = [
+    for (final interval in intervalUs) interval.toDouble(),
+  ];
+  final meanIntervalUs = _mean(intervalValues);
+  if (meanIntervalUs <= 0) return null;
+
+  final standardDeviationUs = _standardDeviation(
+    intervalValues,
+    meanIntervalUs,
+  );
+  return _IntervalStatistics(
+    mean: _durationFromMicroseconds(meanIntervalUs),
+    median: _durationFromMicroseconds(_medianNumeric(intervalValues)),
+    standardDeviation: _durationFromMicroseconds(standardDeviationUs),
+    coefficientOfVariation: standardDeviationUs / meanIntervalUs,
+    minimum: Duration(microseconds: intervalUs.reduce(math.min)),
+    maximum: Duration(microseconds: intervalUs.reduce(math.max)),
   );
 }
 
@@ -747,6 +996,26 @@ double _userAccelerationMagnitude(SensorSample sample) {
         sample.userAccelerationZ * sample.userAccelerationZ,
   );
   return value.isFinite ? value : 0;
+}
+
+double _angularVelocityMagnitude(SensorSample sample) {
+  final value = math.sqrt(
+    sample.rotationRateX * sample.rotationRateX +
+        sample.rotationRateY * sample.rotationRateY +
+        sample.rotationRateZ * sample.rotationRateZ,
+  );
+  return value.isFinite ? value : 0;
+}
+
+double _cadenceSignalValue(SensorSample sample, _CadenceSignal signal) {
+  return switch (signal) {
+    _CadenceSignal.userAccelerationMagnitude => _userAccelerationMagnitude(
+      sample,
+    ),
+    _CadenceSignal.angularVelocityMagnitude => _angularVelocityMagnitude(
+      sample,
+    ),
+  };
 }
 
 /// Applies the Butterworth low-pass preprocessing motivated by Susi et al.
@@ -939,23 +1208,33 @@ _PeriodEstimate? _estimateDominantPeriod(
       localMaxima.add(MapEntry(lag, current));
     }
   }
+  final maximumBoundary = correlations[maximumLag]!;
+  if (maximumBoundary > correlations[maximumLag - 1]!) {
+    localMaxima.add(MapEntry(maximumLag, maximumBoundary));
+  }
 
-  final candidates = localMaxima.isEmpty
-      ? correlations.entries.toList()
-      : localMaxima;
-  final strongestCorrelation = candidates
+  final preferredCandidates = localMaxima
+      .where((entry) => entry.value.isFinite && entry.value > 0)
+      .toList(growable: false);
+  final usableCandidates = preferredCandidates.isEmpty
+      ? correlations.entries
+            .where((entry) => entry.value.isFinite && entry.value > 0)
+            .toList(growable: false)
+      : preferredCandidates;
+  if (usableCandidates.isEmpty) {
+    return null;
+  }
+
+  final strongestCorrelation = usableCandidates
       .map((entry) => entry.value)
       .reduce(math.max);
   final comparableCorrelation =
       strongestCorrelation * defaultCadenceComparablePeriodicityRatio;
-  final selected = candidates
+  final selected = usableCandidates
       .where((entry) => entry.value >= comparableCorrelation)
       .reduce((earlier, entry) => entry.key < earlier.key ? entry : earlier);
   final bestLag = selected.key;
   final bestCorrelation = selected.value;
-  if (!bestCorrelation.isFinite) {
-    return null;
-  }
 
   final period = Duration(
     microseconds: sampleInterval.inMicroseconds * bestLag,
@@ -1079,6 +1358,39 @@ class _PeriodEstimate {
 
   double get cadenceStepsPerMinute =>
       Duration.microsecondsPerMinute / period.inMicroseconds;
+}
+
+class _IntervalStatistics {
+  const _IntervalStatistics({
+    required this.mean,
+    required this.median,
+    required this.standardDeviation,
+    required this.coefficientOfVariation,
+    required this.minimum,
+    required this.maximum,
+  });
+
+  final Duration mean;
+  final Duration median;
+  final Duration standardDeviation;
+  final double coefficientOfVariation;
+  final Duration minimum;
+  final Duration maximum;
+}
+
+enum _CadenceSignal {
+  userAccelerationMagnitude,
+  angularVelocityMagnitude,
+}
+
+class _CadenceCandidate {
+  const _CadenceCandidate({
+    required this.signal,
+    required this.result,
+  });
+
+  final _CadenceSignal signal;
+  final GaitCadenceResult result;
 }
 
 class _ConfidenceAssessment {

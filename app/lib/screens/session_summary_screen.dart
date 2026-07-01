@@ -462,6 +462,16 @@ class _QualitySection extends StatelessWidget {
               temporal.stepTimeCoefficientOfVariation,
             ),
           ),
+          if (temporal.meanStrideTime case final strideTime?)
+            _QualityRow(
+              label: 'Prosječno vrijeme iskoraka (eksperimentalno)',
+              value: _formatDurationSeconds(strideTime),
+            ),
+          if (temporal.strideTimeCoefficientOfVariation case final strideCv?)
+            _QualityRow(
+              label: 'Varijabilnost vremena iskoraka (eksperimentalno)',
+              value: _formatPercent(strideCv),
+            ),
           _QualityRow(
             label: 'Varijabilnost kadence (eksperimentalno)',
             value: _formatCadenceSpread(
@@ -469,7 +479,7 @@ class _QualitySection extends StatelessWidget {
             ),
           ),
           _QualityRow(
-            label: 'Regularnost signala (eksperimentalno)',
+            label: 'Regularnost signala (indikator kvalitete)',
             value: _formatGaitRegularity(temporal.gaitRegularity),
           ),
         ],
@@ -480,11 +490,11 @@ class _QualitySection extends StatelessWidget {
           ),
         const SizedBox(height: 8),
         _QualityRow(
-          label: 'Brzina hoda (eksperimentalno)',
+          label: 'Brzina hoda (gruba procjena)',
           value: _formatWalkingSpeed(summary.gaitWalkingSpeed),
         ),
         _QualityRow(
-          label: 'Duljina koraka (eksperimentalno)',
+          label: 'Duljina koraka (gruba procjena)',
           value: _formatStepLength(summary.gaitWalkingSpeed),
         ),
         if (!summary.gaitWalkingSpeed.hasComputedSpeed)
@@ -753,6 +763,8 @@ String _formatWalkingSpeedUnavailableReason(GaitWalkingSpeedSummary speed) {
     noSuitableCadenceSignalReason =>
       'Nema dovoljno stabilnog hodanja po ravnom.',
     cadenceNotComputedReason => 'Kadenca nije izračunata.',
+    lowConfidenceCadenceReason =>
+      'Kadenca je preniske pouzdanosti za procjenu brzine.',
     insufficientVerticalAmplitudeReason => 'Vertikalni signal je prenizak.',
     invalidPendulumGeometryReason =>
       'Geometrija modela nije valjana za ovaj signal.',

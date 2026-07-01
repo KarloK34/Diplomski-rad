@@ -15,6 +15,7 @@ void main() {
     int index, {
     DateTime? timestamp,
     double projectedAcceleration = 0,
+    double rotationRateZ = 0,
   }) {
     return SensorSample(
       timestamp: timestamp ?? start.add(Duration(milliseconds: index * 20)),
@@ -26,7 +27,7 @@ void main() {
       userAccelerationZ: projectedAcceleration,
       rotationRateX: 0,
       rotationRateY: 0,
-      rotationRateZ: 0,
+      rotationRateZ: rotationRateZ,
     );
   }
 
@@ -72,6 +73,48 @@ void main() {
               magnitude +=
                   secondaryPeakScale *
                   pulse(time, primary + secondaryPeakOffsetSeconds);
+            }
+            return magnitude;
+          }(),
+        ),
+    ];
+  }
+
+  List<SensorSample> pocketSwingSamples({
+    required int stepCount,
+    required double stepPeriodSeconds,
+  }) {
+    const samplePeriodSeconds = 0.02;
+    const firstStepSeconds = 0.7;
+    const pulseWidthSeconds = 0.05;
+    final durationSeconds =
+        firstStepSeconds + (stepCount - 1) * stepPeriodSeconds + 0.9;
+    final sampleCount = (durationSeconds / samplePeriodSeconds).ceil() + 1;
+
+    double pulse(double time, double center) {
+      final normalized = (time - center) / pulseWidthSeconds;
+      return math.exp(-0.5 * normalized * normalized);
+    }
+
+    return [
+      for (var i = 0; i < sampleCount; i++)
+        sampleAt(
+          i,
+          projectedAcceleration: () {
+            final time = i * samplePeriodSeconds;
+            var magnitude = 0.01;
+            for (var step = 0; step < stepCount; step += 2) {
+              final center = firstStepSeconds + step * stepPeriodSeconds;
+              magnitude += 0.9 * pulse(time, center);
+            }
+            return magnitude;
+          }(),
+          rotationRateZ: () {
+            final time = i * samplePeriodSeconds;
+            var magnitude = 0.02;
+            for (var step = 0; step < stepCount; step++) {
+              final center = firstStepSeconds + step * stepPeriodSeconds;
+              magnitude += 2.5 * pulse(time, center);
             }
             return magnitude;
           }(),
@@ -193,6 +236,10 @@ void main() {
     expect(temporal.stepTimeCoefficientOfVariation, closeTo(0, 1e-12));
     expect(temporal.minimumStepTime, const Duration(milliseconds: 500));
     expect(temporal.maximumStepTime, const Duration(milliseconds: 500));
+    expect(temporal.strideIntervalCount, 3);
+    expect(temporal.meanStrideTime, const Duration(milliseconds: 1000));
+    expect(temporal.strideTimeStandardDeviation, Duration.zero);
+    expect(temporal.strideTimeCoefficientOfVariation, closeTo(0, 1e-12));
     expect(temporal.meanInstantCadenceStepsPerMinute, closeTo(120, 1e-9));
     expect(
       temporal.instantCadenceStandardDeviationStepsPerMinute,
@@ -228,6 +275,16 @@ void main() {
     );
     expect(temporal.minimumStepTime, const Duration(milliseconds: 500));
     expect(temporal.maximumStepTime, const Duration(milliseconds: 700));
+    expect(temporal.strideIntervalCount, 2);
+    expect(temporal.meanStrideTime, const Duration(milliseconds: 1200));
+    expect(
+      temporal.strideTimeStandardDeviation,
+      const Duration(milliseconds: 100),
+    );
+    expect(
+      temporal.strideTimeCoefficientOfVariation,
+      closeTo(1 / 12, 1e-6),
+    );
     expect(
       temporal.meanInstantCadenceStepsPerMinute,
       closeTo(101.9047619, 1e-6),
@@ -260,6 +317,8 @@ void main() {
     expect(temporal.meanStepTime, const Duration(milliseconds: 560));
     expect(temporal.minimumStepTime, const Duration(milliseconds: 500));
     expect(temporal.maximumStepTime, const Duration(milliseconds: 600));
+    expect(temporal.strideIntervalCount, 3);
+    expect(temporal.meanStrideTime, const Duration(microseconds: 1133333));
     expect(temporal.gaitRegularity, closeTo(0.58, 1e-12));
   });
 
@@ -268,6 +327,43 @@ void main() {
 
     expect(computeGaitTemporalParameters(result), isNull);
     expect(summarizeGaitTemporalParameters([result]), isNull);
+  });
+
+  test('leaves stride metrics empty without same-side intervals', () {
+    final result = computedResultFromOffsets([
+      Duration.zero,
+      const Duration(milliseconds: 500),
+    ]);
+
+    final temporal = computeGaitTemporalParameters(result);
+
+    expect(temporal, isNotNull);
+    expect(temporal!.stepIntervalCount, 1);
+    expect(temporal.strideIntervalCount, 0);
+    expect(temporal.meanStrideTime, isNull);
+    expect(temporal.strideTimeStandardDeviation, isNull);
+    expect(temporal.strideTimeCoefficientOfVariation, isNull);
+  });
+
+  test('filters isolated temporal outliers from variability summaries', () {
+    final result = computedResultFromOffsets([
+      Duration.zero,
+      const Duration(milliseconds: 500),
+      const Duration(milliseconds: 1000),
+      const Duration(milliseconds: 1500),
+      const Duration(milliseconds: 2000),
+      const Duration(milliseconds: 3000),
+      const Duration(milliseconds: 3500),
+    ]);
+
+    final temporal = computeGaitTemporalParameters(result);
+
+    expect(temporal, isNotNull);
+    expect(temporal!.stepIntervalCount, 5);
+    expect(temporal.meanStepTime, const Duration(milliseconds: 500));
+    expect(temporal.stepTimeStandardDeviation, Duration.zero);
+    expect(temporal.strideIntervalCount, 3);
+    expect(temporal.meanStrideTime, const Duration(milliseconds: 1000));
   });
 
   test('Butterworth preprocessing has the expected low-pass response', () {
@@ -443,6 +539,35 @@ void main() {
     expect(result.cadenceStepsPerMinute, closeTo(60 / 0.34, 5));
   });
 
+  test('keeps a slow cadence at the upper period boundary', () {
+    final result = analyzeGaitCadenceSamples(
+      stepPulseSamples(
+        stepCount: 7,
+        stepPeriodSeconds: 1,
+        secondaryPeakOffsetSeconds: 0.42,
+        secondaryPeakScale: 0.15,
+      ),
+    );
+
+    expect(result.status, GaitCadenceStatus.computed);
+    expect(result.stepCount, 7);
+    expect(result.cadenceStepsPerMinute, closeTo(60, 3));
+  });
+
+  test('uses angular velocity when acceleration follows stride rhythm', () {
+    final result = analyzeGaitCadenceSamples(
+      pocketSwingSamples(
+        stepCount: 18,
+        stepPeriodSeconds: 0.52,
+      ),
+    );
+
+    expect(result.status, GaitCadenceStatus.computed);
+    expect(result.stepCount, 18);
+    expect(result.cadenceStepsPerMinute, closeTo(60 / 0.52, 5));
+    expect(result.confidence, GaitCadenceConfidence.high);
+  });
+
   test('lowers confidence when peak and period cadence disagree', () {
     final result = analyzeGaitCadenceSamples(
       stepPulseSamples(
@@ -468,6 +593,20 @@ void main() {
     expect(result.reason, tooFewCadencePeaksReason);
     expect(result.stepCount, lessThan(defaultCadenceMinimumDetectedSteps));
   });
+
+  test(
+    'returns insufficient signal for a transient without repeated peaks',
+    () {
+      final result = analyzeGaitCadenceSamples([
+        for (var i = 0; i < 150; i++)
+          sampleAt(i, projectedAcceleration: i < 20 ? 1 : 0),
+      ]);
+
+      expect(result.status, GaitCadenceStatus.insufficientSignal);
+      expect(result.reason, tooFewCadencePeaksReason);
+      expect(result.stepCount, lessThan(defaultCadenceMinimumDetectedSteps));
+    },
+  );
 
   test('does not throw on inconsistent timestamps', () {
     final result = analyzeGaitCadenceSamples([

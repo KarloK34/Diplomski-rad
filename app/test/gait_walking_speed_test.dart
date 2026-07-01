@@ -67,6 +67,8 @@ void main() {
   GaitCadenceResult computedCadenceResult({
     double cadenceStepsPerMinute = 120,
     Duration duration = const Duration(seconds: 5),
+    GaitCadenceConfidence confidence = GaitCadenceConfidence.high,
+    String? confidenceReason,
   }) {
     return GaitCadenceResult(
       stepCount: 10,
@@ -88,8 +90,8 @@ void main() {
       ],
       status: GaitCadenceStatus.computed,
       reason: null,
-      confidence: GaitCadenceConfidence.high,
-      confidenceReason: null,
+      confidence: confidence,
+      confidenceReason: confidenceReason,
     );
   }
 
@@ -168,6 +170,28 @@ void main() {
       expect(result.isComputed, isFalse);
       expect(result.status, GaitWalkingSpeedStatus.unavailable);
       expect(result.reason, cadenceNotComputedReason);
+    });
+
+    test('returns unavailable when cadence confidence is low', () {
+      final samples = sinusoidalSamples(
+        count: 300,
+        frequencyHz: 2,
+        amplitudeG: 0.08,
+      );
+      final segment = segmentFromSamples(samples);
+
+      final result = analyzeGaitWalkingSpeed(
+        segment,
+        cadenceResult: computedCadenceResult(
+          confidence: GaitCadenceConfidence.low,
+          confidenceReason: cadenceEstimatesDisagreeReason,
+        ),
+        userHeightCm: 175,
+      );
+
+      expect(result.isComputed, isFalse);
+      expect(result.status, GaitWalkingSpeedStatus.unavailable);
+      expect(result.reason, lowConfidenceCadenceReason);
     });
 
     test('returns unavailable when segment has no samples', () {

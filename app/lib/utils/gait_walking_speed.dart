@@ -15,6 +15,9 @@ const String missingCadenceResultReason = 'missing_cadence_result';
 /// The cadence result for this segment was not computed.
 const String cadenceNotComputedReason = 'cadence_not_computed';
 
+/// The cadence result was computed but has low confidence.
+const String lowConfidenceCadenceReason = 'low_confidence_cadence';
+
 /// The vertical acceleration amplitude was too small to estimate displacement.
 const String insufficientVerticalAmplitudeReason =
     'insufficient_vertical_amplitude';
@@ -158,6 +161,15 @@ GaitWalkingSpeedResult analyzeGaitWalkingSpeed(
 }) {
   if (!cadenceResult.isComputed) {
     return _notComputed(reason: cadenceNotComputedReason);
+  }
+
+  // Spatial estimates are downstream of accepted step events and cadence.
+  // Zijlstra & Hof (2003), https://doi.org/10.1016/S0966-6362(02)00190-X,
+  // estimate spatio-temporal parameters from trunk accelerations after gait
+  // event identification. With a pocket phone this app keeps speed unavailable
+  // when the upstream cadence evidence is weak.
+  if (cadenceResult.confidence == GaitCadenceConfidence.low) {
+    return _notComputed(reason: lowConfidenceCadenceReason);
   }
 
   if (!segment.hasSamples) {
