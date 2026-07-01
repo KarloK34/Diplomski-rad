@@ -119,8 +119,10 @@ void main() {
       find.text('Varijabilnost vremena koraka (eksperimentalno)'),
       findsOneWidget,
     );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
     expect(
-      find.text('ProsjeÄno vrijeme iskoraka (eksperimentalno)'),
+      find.text('Prosječno vrijeme iskoraka (eksperimentalno)'),
       findsOneWidget,
     );
     expect(

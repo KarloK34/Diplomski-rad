@@ -5,6 +5,7 @@ import 'package:gait_sense/screens/live_har_screen.dart';
 import 'package:gait_sense/services/gait_foreground_service.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
 import 'package:gait_sense/services/user_preferences_repository.dart';
+import 'package:gait_sense/theme/gait_sense_theme.dart';
 
 /// Root MaterialApp and composition root.
 ///
@@ -46,10 +47,8 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
         value: _preferences,
         child: MaterialApp(
           title: 'Gait Sense',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-            useMaterial3: true,
-          ),
+          theme: GaitSenseTheme.light(),
+          darkTheme: GaitSenseTheme.dark(),
           home: const LiveHarScreen(),
         ),
       ),

@@ -4,7 +4,7 @@ import 'package:gait_sense/blocs/sensor_stream/sensor_stream_bloc.dart';
 import 'package:gait_sense/blocs/sensor_stream/sensor_stream_event.dart';
 import 'package:gait_sense/blocs/sensor_stream/sensor_stream_state.dart';
 import 'package:gait_sense/models/channel_statistics.dart';
-import 'package:gait_sense/theme/app_text_styles.dart';
+import 'package:gait_sense/theme/theme_context.dart';
 
 /// Live readout of the resampled IMU channels. Shows the measured sampling
 /// rate plus per-channel mean/std accumulated since Start, so a walking test
@@ -61,6 +61,7 @@ class _MetricsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hertzInRange = state.measuredHertz >= 48 && state.measuredHertz <= 52;
+    final appTextStyles = context.appTextStyles;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -73,7 +74,7 @@ class _MetricsHeader extends StatelessWidget {
           'Rate: ${state.measuredHertz.toStringAsFixed(1)} Hz'
           '${state.isRunning ? (hertzInRange ? "  ✓" : "  ⚠") : ""}',
           style: state.isRunning && !hertzInRange
-              ? AppTextStyles.warning
+              ? appTextStyles.warning
               : null,
         ),
         Text('Uzoraka: ${state.sampleCount}'),
@@ -138,9 +139,10 @@ class _StatisticsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appTextStyles = context.appTextStyles;
     final numericStyle = highlight || isHeader
-        ? AppTextStyles.monospaceDataBold
-        : AppTextStyles.monospaceData;
+        ? appTextStyles.monospaceDataBold
+        : appTextStyles.monospaceData;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -149,7 +151,7 @@ class _StatisticsRow extends StatelessWidget {
             flex: 3,
             child: Text(
               channel,
-              style: isHeader ? AppTextStyles.tableHeader : null,
+              style: isHeader ? appTextStyles.tableHeader : null,
             ),
           ),
           Expanded(
