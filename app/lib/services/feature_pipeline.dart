@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:gait_sense/models/feature_window.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
+import 'package:gait_sense/utils/sensor_conversion.dart';
 
 /// Walking-frame v2 feature extraction, ported one-to-one from the canonical
 /// Python implementation `compute_walking_frame_features_v2`
@@ -83,8 +84,7 @@ class FeaturePipeline {
       gHat[t][2] = s.gravityZ / gNorm;
 
       // Vertical projection a_v = u_a · g_hat (signed).
-      aV[t] =
-          ua[t][0] * gHat[t][0] + ua[t][1] * gHat[t][1] + ua[t][2] * gHat[t][2];
+      aV[t] = verticalAcceleration(s);
 
       // Horizontal residual and its magnitude (Mizell, 2003).
       uaHorizontal[t][0] = ua[t][0] - aV[t] * gHat[t][0];

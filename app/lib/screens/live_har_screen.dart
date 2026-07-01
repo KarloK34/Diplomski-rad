@@ -9,6 +9,7 @@ import 'package:gait_sense/blocs/ui/ui_state.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/screens/debug_sensors_screen.dart';
 import 'package:gait_sense/screens/session_summary_screen.dart';
+import 'package:gait_sense/screens/settings_screen.dart';
 import 'package:gait_sense/services/sensor_service.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
 
@@ -66,6 +67,11 @@ class LiveHarScreen extends StatelessWidget {
             title: const Text('Live HAR'),
             actions: [
               IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'Postavke',
+                onPressed: () => _openSettings(context),
+              ),
+              IconButton(
                 icon: const Icon(Icons.sensors),
                 tooltip: 'Debug senzori',
                 onPressed: () => _openDebugScreen(context),
@@ -76,6 +82,16 @@ class LiveHarScreen extends StatelessWidget {
           floatingActionButton: _RecordButton(state: state),
         );
       },
+    );
+  }
+
+  void _openSettings(BuildContext context) {
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const SettingsScreen(),
+        ),
+      ),
     );
   }
 

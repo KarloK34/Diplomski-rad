@@ -4,11 +4,14 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/services/user_preferences_repository.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
+import 'package:gait_sense/utils/gait_walking_speed.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -17,13 +20,18 @@ import 'package:share_plus/share_plus.dart';
 // Top-level isolate entry point
 // ---------------------------------------------------------------------------
 
-/// Aggregated summary data computed off the UI isolate.
+/// Input bundle passed to the worker isolate via [compute].
 ///
-/// [compute] requires a top-level (or static) function and a
-/// SendPort-serialisable argument, so the three computations that previously
-/// ran synchronously inside `build` are bundled here and dispatched to a
-/// worker isolate via [compute].  This keeps the UI thread free during the
-/// (potentially >100 ms) signal-processing work on long sessions.
+/// [compute] accepts a single SendPort-serialisable argument, so the session
+/// and optional user height are bundled here.
+class _SummaryInput {
+  const _SummaryInput({required this.session, this.userHeightCm});
+
+  final SessionLog session;
+  final double? userHeightCm;
+}
+
+/// Aggregated summary data computed off the UI isolate.
 class _SummaryData {
   const _SummaryData({
     required this.totals,
@@ -36,12 +44,15 @@ class _SummaryData {
   final SessionQualitySummary quality;
 }
 
-/// Entry point for [compute].  Must be a top-level function.
-_SummaryData _computeSummaryData(SessionLog session) {
+/// Entry point for [compute]. Must be a top-level function.
+_SummaryData _computeSummaryData(_SummaryInput input) {
   return _SummaryData(
-    totals: computeClassTotals(session),
-    timeline: computeTimeline(session),
-    quality: computeSessionQualitySummary(session),
+    totals: computeClassTotals(input.session),
+    timeline: computeTimeline(input.session),
+    quality: computeSessionQualitySummary(
+      input.session,
+      userHeightCm: input.userHeightCm,
+    ),
   );
 }
 
@@ -74,12 +85,21 @@ class SessionSummaryScreen extends StatefulWidget {
 class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
   late final Future<_SummaryData> _summaryFuture;
 
+  Future<_SummaryInput> _buildInput() async {
+    final prefs = context.read<UserPreferencesRepository>();
+    final heightCm = await prefs.getHeightCm();
+    return _SummaryInput(session: widget.session, userHeightCm: heightCm);
+  }
+
   @override
   void initState() {
     super.initState();
-    // Kick off the worker immediately; the future is stored so that Flutter
-    // does not re-submit it on every rebuild.
-    _summaryFuture = compute(_computeSummaryData, widget.session);
+    // Read the user height (fast local read), then dispatch the heavy
+    // computation to a worker isolate.  The future is stored so Flutter does
+    // not re-submit it on rebuilds.
+    _summaryFuture = _buildInput().then(
+      (input) => compute(_computeSummaryData, input),
+    );
   }
 
   @override
@@ -442,6 +462,16 @@ class _QualitySection extends StatelessWidget {
               temporal.stepTimeCoefficientOfVariation,
             ),
           ),
+          if (temporal.meanStrideTime case final strideTime?)
+            _QualityRow(
+              label: 'Prosječno vrijeme iskoraka (eksperimentalno)',
+              value: _formatDurationSeconds(strideTime),
+            ),
+          if (temporal.strideTimeCoefficientOfVariation case final strideCv?)
+            _QualityRow(
+              label: 'Varijabilnost vremena iskoraka (eksperimentalno)',
+              value: _formatPercent(strideCv),
+            ),
           _QualityRow(
             label: 'Varijabilnost kadence (eksperimentalno)',
             value: _formatCadenceSpread(
@@ -449,7 +479,7 @@ class _QualitySection extends StatelessWidget {
             ),
           ),
           _QualityRow(
-            label: 'Regularnost signala (eksperimentalno)',
+            label: 'Regularnost signala (indikator kvalitete)',
             value: _formatGaitRegularity(temporal.gaitRegularity),
           ),
         ],
@@ -457,6 +487,22 @@ class _QualitySection extends StatelessWidget {
           _QualityRow(
             label: 'Razlog',
             value: _formatCadenceUnavailableReason(summary.gaitCadence.reason),
+          ),
+        const SizedBox(height: 8),
+        _QualityRow(
+          label: 'Brzina hoda (gruba procjena)',
+          value: _formatWalkingSpeed(summary.gaitWalkingSpeed),
+        ),
+        _QualityRow(
+          label: 'Duljina koraka (gruba procjena)',
+          value: _formatStepLength(summary.gaitWalkingSpeed),
+        ),
+        if (!summary.gaitWalkingSpeed.hasComputedSpeed)
+          _QualityRow(
+            label: 'Razlog brzine hoda',
+            value: _formatWalkingSpeedUnavailableReason(
+              summary.gaitWalkingSpeed,
+            ),
           ),
         if (suitableGaitSegments.isEmpty)
           Padding(
@@ -696,4 +742,34 @@ String _formatStartTime(DateTime dt) {
   final local = dt.toLocal();
   return '${_two(local.day)}.${_two(local.month)}.${local.year}. '
       '${_two(local.hour)}:${_two(local.minute)}';
+}
+
+String _formatWalkingSpeed(GaitWalkingSpeedSummary speed) {
+  final value = speed.averageWalkingSpeedMs;
+  if (!speed.hasComputedSpeed || value == null) return 'Nije dostupna';
+  return '${value.toStringAsFixed(2).replaceAll('.', ',')} m/s';
+}
+
+String _formatStepLength(GaitWalkingSpeedSummary speed) {
+  final value = speed.averageStepLengthM;
+  if (!speed.hasComputedSpeed || value == null) return 'Nije dostupna';
+  return '${(value * 100).round()} cm';
+}
+
+String _formatWalkingSpeedUnavailableReason(GaitWalkingSpeedSummary speed) {
+  return switch (speed.reason) {
+    missingUserHeightReason =>
+      'Visina nije postavljena — dodajte je u postavkama.',
+    noSuitableCadenceSignalReason =>
+      'Nema dovoljno stabilnog hodanja po ravnom.',
+    cadenceNotComputedReason => 'Kadenca nije izračunata.',
+    lowConfidenceCadenceReason =>
+      'Kadenca je preniske pouzdanosti za procjenu brzine.',
+    insufficientVerticalAmplitudeReason => 'Vertikalni signal je prenizak.',
+    invalidPendulumGeometryReason =>
+      'Geometrija modela nije valjana za ovaj signal.',
+    implausibleStepLengthReason =>
+      'Procijenjena duljina koraka je izvan očekivanog raspona.',
+    _ => 'Brzina hoda nije dostupna.',
+  };
 }

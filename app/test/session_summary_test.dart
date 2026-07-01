@@ -8,6 +8,7 @@ import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
+import 'package:gait_sense/utils/gait_walking_speed.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 
 void main() {
@@ -66,14 +67,16 @@ void main() {
     int count, {
     double firstFrequencyHz = 2,
     double secondFrequencyHz = 1.5,
+    double amplitude = 0.08,
+    double baseline = 0.06,
   }) {
     return [
       for (var i = 0; i < count; i++)
         sampleAt(
           i,
           projectedAcceleration:
-              0.06 +
-              0.08 *
+              baseline +
+              amplitude *
                   (1 +
                       math.sin(
                         2 *
@@ -516,6 +519,11 @@ void main() {
         (sum, result) =>
             sum + computeGaitTemporalParameters(result)!.stepIntervalCount,
       );
+      final totalStrideIntervals = results.fold<int>(
+        0,
+        (sum, result) =>
+            sum + computeGaitTemporalParameters(result)!.strideIntervalCount,
+      );
       final expectedCadence =
           results.fold<double>(
             0,
@@ -543,6 +551,10 @@ void main() {
         totalIntervals,
       );
       expect(
+        summary.gaitCadence.temporalParameters!.strideIntervalCount,
+        totalStrideIntervals,
+      );
+      expect(
         summary.gaitCadence.averageCadenceStepsPerMinute,
         closeTo(expectedCadence, 1e-9),
       );
@@ -550,6 +562,59 @@ void main() {
         summary.gaitCadence.averageCadenceStepsPerMinute,
         isNot(closeTo(simpleAverage, 0.01)),
       );
+    });
+
+    test('gaitWalkingSpeed is noHeight when userHeightCm is not provided', () {
+      final summary = computeSessionQualitySummary(
+        session(predictions: const []),
+      );
+      expect(
+        summary.gaitWalkingSpeed.status,
+        GaitWalkingSpeedStatus.unavailable,
+      );
+      expect(summary.gaitWalkingSpeed.reason, missingUserHeightReason);
+      expect(summary.gaitWalkingSpeed.averageWalkingSpeedMs, isNull);
+      expect(summary.gaitWalkingSpeed.averageStepLengthM, isNull);
+    });
+
+    test('gaitWalkingSpeed is unavailable when no suitable signal exists', () {
+      final summary = computeSessionQualitySummary(
+        session(predictions: const []),
+        userHeightCm: 175,
+      );
+      expect(
+        summary.gaitWalkingSpeed.status,
+        GaitWalkingSpeedStatus.unavailable,
+      );
+      expect(summary.gaitWalkingSpeed.averageWalkingSpeedMs, isNull);
+    });
+
+    test('gaitWalkingSpeed computes when height and signal are provided', () {
+      final rawSamples = periodicSamples(500, amplitude: 0.20);
+      final summary = computeSessionQualitySummary(
+        session(
+          rawSamples: rawSamples,
+          predictions: [
+            predictionAt('wlk', 3, endSampleIndex: 177),
+            predictionAt('wlk', 4, endSampleIndex: 241),
+            predictionAt('wlk', 5, endSampleIndex: 305),
+            predictionAt('wlk', 6, endSampleIndex: 369),
+            predictionAt('wlk', 8, endSampleIndex: 433),
+          ],
+          stoppedAt: start.add(const Duration(seconds: 10)),
+        ),
+        userHeightCm: 175,
+      );
+
+      expect(summary.gaitCadence.hasComputedCadence, isTrue);
+      expect(summary.gaitWalkingSpeed.hasComputedSpeed, isTrue);
+
+      expect(summary.gaitWalkingSpeed.signalSegmentCount, 1);
+      expect(summary.gaitWalkingSpeed.computedResultCount, 1);
+      expect(summary.gaitWalkingSpeed.averageWalkingSpeedMs, isNotNull);
+      expect(summary.gaitWalkingSpeed.averageStepLengthM, isNotNull);
+      expect(summary.gaitWalkingSpeed.averageWalkingSpeedMs, greaterThan(0));
+      expect(summary.gaitWalkingSpeed.averageStepLengthM, greaterThan(0));
     });
   });
 

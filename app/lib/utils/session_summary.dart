@@ -4,6 +4,7 @@ import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
+import 'package:gait_sense/utils/gait_walking_speed.dart';
 import 'package:gait_sense/utils/prediction_segment_time.dart';
 
 /// Pure aggregation helpers for the session summary screen.
@@ -26,6 +27,9 @@ const int defaultStableLocomotionMinWindows = 5;
 
 /// No suitable level-walking signal segment was available for cadence.
 const String noSuitableCadenceSignalReason = 'no_suitable_cadence_signal';
+
+/// User height was not provided so walking speed cannot be estimated.
+const String missingUserHeightReason = 'missing_user_height';
 
 /// Aggregated time a single activity class occupied during a session.
 class ClassTotal extends Equatable {
@@ -197,6 +201,65 @@ class GaitCadenceSummary extends Equatable {
   ];
 }
 
+/// Duration-weighted walking-speed and step-length summary across all suitable
+/// level-walking gait segments in a session.
+///
+/// The weighting rule matches [GaitCadenceSummary]: longer segments contribute
+/// proportionally more to the session average, giving a stable estimate that
+/// is not dominated by short or unreliable segments.  All values are project-
+/// level estimations; see [GaitWalkingSpeedResult] for the full disclaimer.
+class GaitWalkingSpeedSummary extends Equatable {
+  /// Creates a walking-speed summary.
+  const GaitWalkingSpeedSummary({
+    required this.signalSegmentCount,
+    required this.computedResultCount,
+    required this.averageWalkingSpeedMs,
+    required this.averageStepLengthM,
+    required this.status,
+    required this.reason,
+  });
+
+  /// Convenience constructor for the case where no height was provided.
+  const GaitWalkingSpeedSummary.noHeight()
+    : signalSegmentCount = 0,
+      computedResultCount = 0,
+      averageWalkingSpeedMs = null,
+      averageStepLengthM = null,
+      status = GaitWalkingSpeedStatus.unavailable,
+      reason = missingUserHeightReason;
+
+  /// Number of suitable signal segments considered.
+  final int signalSegmentCount;
+
+  /// Number of segments that produced a computed result.
+  final int computedResultCount;
+
+  /// Duration-weighted average walking speed in m/s, or null when unavailable.
+  final double? averageWalkingSpeedMs;
+
+  /// Duration-weighted average step length in metres, or null when unavailable.
+  final double? averageStepLengthM;
+
+  /// Overall status for this summary.
+  final GaitWalkingSpeedStatus status;
+
+  /// Machine-readable reason when [status] is not computed.
+  final String? reason;
+
+  /// Whether [averageWalkingSpeedMs] and [averageStepLengthM] are available.
+  bool get hasComputedSpeed => status == GaitWalkingSpeedStatus.computed;
+
+  @override
+  List<Object?> get props => [
+    signalSegmentCount,
+    computedResultCount,
+    averageWalkingSpeedMs,
+    averageStepLengthM,
+    status,
+    reason,
+  ];
+}
+
 /// Quality summary that keeps raw HAR, smoothed HAR, stable locomotion, and
 /// level-walking gait-analysis candidates separate.
 class SessionQualitySummary extends Equatable {
@@ -213,6 +276,7 @@ class SessionQualitySummary extends Equatable {
     required this.hasEnoughStableLocomotion,
     required this.gaitSegments,
     required this.gaitCadence,
+    required this.gaitWalkingSpeed,
   });
 
   /// Total number of prediction windows in the session.
@@ -247,6 +311,10 @@ class SessionQualitySummary extends Equatable {
 
   /// Prototype cadence summary computed from suitable raw gait signal slices.
   final GaitCadenceSummary gaitCadence;
+
+  /// Prototype walking-speed and step-length summary computed from suitable
+  /// raw gait signal slices.  Null when no user height was provided.
+  final GaitWalkingSpeedSummary gaitWalkingSpeed;
 
   /// Candidate gait segments that pass the app-level gate.
   List<GaitSegment> get suitableGaitSegments {
@@ -288,6 +356,7 @@ class SessionQualitySummary extends Equatable {
     hasEnoughStableLocomotion,
     gaitSegments,
     gaitCadence,
+    gaitWalkingSpeed,
   ];
 }
 
@@ -535,8 +604,13 @@ List<TimelineSegment> computeTimeline(SessionLog session) {
 }
 
 /// Computes raw-vs-smoothed HAR counts, stable locomotion, and gait candidates.
+///
+/// Pass [userHeightCm] to also compute the walking-speed and step-length
+/// estimates.  When omitted, [SessionQualitySummary.gaitWalkingSpeed] will
+/// have [GaitWalkingSpeedSummary.noHeight].
 SessionQualitySummary computeSessionQualitySummary(
   SessionLog session, {
+  double? userHeightCm,
   Set<String> locomotionLabels = defaultLocomotionLabels,
   int minStableLocomotionWindows = defaultStableLocomotionMinWindows,
   int minGaitCandidateWindows = defaultGaitCandidateMinWindows,
@@ -630,6 +704,13 @@ SessionQualitySummary computeSessionQualitySummary(
     gaitSegments: gaitSegments,
   );
   final gaitCadence = summarizeGaitCadence(gaitSignalSegments);
+  final gaitWalkingSpeed = userHeightCm != null
+      ? summarizeGaitWalkingSpeed(
+          gaitSignalSegments,
+          cadenceResults: _cadenceResultsFor(gaitSignalSegments),
+          userHeightCm: userHeightCm,
+        )
+      : const GaitWalkingSpeedSummary.noHeight();
 
   return SessionQualitySummary(
     predictionCount: predictions.length,
@@ -645,6 +726,116 @@ SessionQualitySummary computeSessionQualitySummary(
     hasEnoughStableLocomotion: stableLocomotionSegments.isNotEmpty,
     gaitSegments: gaitSegments,
     gaitCadence: gaitCadence,
+    gaitWalkingSpeed: gaitWalkingSpeed,
+  );
+}
+
+/// Runs [analyzeGaitCadence] on each sampled segment and returns the results
+/// in the same order as the sampled subset of [signalSegments]. Used internally
+/// so [summarizeGaitWalkingSpeed] can reuse cadence values without recomputing.
+List<GaitCadenceResult> _cadenceResultsFor(
+  List<GaitSignalSegment> signalSegments,
+) {
+  return [
+    for (final segment in signalSegments)
+      if (segment.hasSamples) analyzeGaitCadence(segment),
+  ];
+}
+
+/// Duration-weighted walking-speed and step-length summary across all suitable
+/// gait signal segments.
+///
+/// [cadenceResults] must be the output of [_cadenceResultsFor] for the same
+/// [signalSegments] — they are paired by index across sampled segments only.
+GaitWalkingSpeedSummary summarizeGaitWalkingSpeed(
+  List<GaitSignalSegment> signalSegments, {
+  required List<GaitCadenceResult> cadenceResults,
+  required double userHeightCm,
+}) {
+  if (signalSegments.isEmpty) {
+    return const GaitWalkingSpeedSummary(
+      signalSegmentCount: 0,
+      computedResultCount: 0,
+      averageWalkingSpeedMs: null,
+      averageStepLengthM: null,
+      status: GaitWalkingSpeedStatus.unavailable,
+      reason: noSuitableCadenceSignalReason,
+    );
+  }
+
+  final sampledSegments = [
+    for (final s in signalSegments)
+      if (s.hasSamples) s,
+  ];
+
+  assert(
+    cadenceResults.length == sampledSegments.length,
+    'cadenceResults must be aligned with sampled signalSegments',
+  );
+
+  final results = [
+    for (var i = 0; i < sampledSegments.length; i++)
+      analyzeGaitWalkingSpeed(
+        sampledSegments[i],
+        cadenceResult: cadenceResults[i],
+        userHeightCm: userHeightCm,
+      ),
+  ];
+
+  final computedResults = [
+    for (final r in results)
+      if (r.isComputed) r,
+  ];
+
+  if (computedResults.isEmpty) {
+    return GaitWalkingSpeedSummary(
+      signalSegmentCount: signalSegments.length,
+      computedResultCount: 0,
+      averageWalkingSpeedMs: null,
+      averageStepLengthM: null,
+      status: results.isEmpty
+          ? GaitWalkingSpeedStatus.unavailable
+          : results.first.status,
+      reason: results.isEmpty
+          ? noSuitableCadenceSignalReason
+          : results.first.reason,
+    );
+  }
+
+  // Duration-weighted averages — longer segments contribute proportionally
+  // more, matching the weighting rule in summarizeGaitCadence.
+  final totalDurationUs = sampledSegments
+      .asMap()
+      .entries
+      .where((e) => results[e.key].isComputed)
+      .fold<int>(
+        0,
+        (sum, e) => sum + e.value.gaitSegment.duration.inMicroseconds,
+      );
+
+  double weightedAverage(double Function(GaitWalkingSpeedResult) value) {
+    if (totalDurationUs == 0) return 0;
+    return sampledSegments
+            .asMap()
+            .entries
+            .where((e) => results[e.key].isComputed)
+            .fold<double>(
+              0,
+              (sum, e) =>
+                  sum +
+                  value(results[e.key]) *
+                      e.value.gaitSegment.duration.inMicroseconds,
+            ) /
+        totalDurationUs;
+  }
+
+  return GaitWalkingSpeedSummary(
+    signalSegmentCount: signalSegments.length,
+    computedResultCount: computedResults.length,
+    averageWalkingSpeedMs: weightedAverage((r) => r.walkingSpeedMs),
+    averageStepLengthM: weightedAverage((r) => r.stepLengthM),
+    status: GaitWalkingSpeedStatus.computed,
+    reason: null,
   );
 }
 
