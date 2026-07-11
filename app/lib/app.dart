@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/ui/ui_bloc.dart';
-import 'package:gait_sense/screens/live_har_screen.dart';
+import 'package:gait_sense/navigation/app_router.dart';
 import 'package:gait_sense/services/gait_foreground_service.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
 import 'package:gait_sense/services/user_preferences_repository.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
+import 'package:go_router/go_router.dart';
 
 /// Root MaterialApp and composition root.
 ///
@@ -25,6 +26,7 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
   final GaitForegroundService _service = GaitForegroundService();
   final SessionLogRepository _repository = SessionLogRepository();
   final UserPreferencesRepository _preferences = UserPreferencesRepository();
+  late final GoRouter _router = createAppRouter();
 
   @override
   void initState() {
@@ -35,6 +37,7 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
 
   @override
   void dispose() {
+    _router.dispose();
     _service.dispose();
     super.dispose();
   }
@@ -45,11 +48,11 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
       create: (_) => UiBloc(controller: _service, repository: _repository),
       child: RepositoryProvider<UserPreferencesRepository>.value(
         value: _preferences,
-        child: MaterialApp(
+        child: MaterialApp.router(
           title: 'Gait Sense',
           theme: GaitSenseTheme.light(),
           darkTheme: GaitSenseTheme.dark(),
-          home: const LiveHarScreen(),
+          routerConfig: _router,
         ),
       ),
     );

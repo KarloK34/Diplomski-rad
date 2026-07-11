@@ -24,10 +24,35 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
-  testWidgets('app renders the live HAR screen with a Start control', (
+  testWidgets('app renders bottom navigation and opens recording tab', (
     tester,
   ) async {
     await tester.pumpWidget(const GaitSenseApp());
+
+    final navigationBar = find.byType(NavigationBar);
+    expect(find.text('Gait Sense'), findsOneWidget);
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Početna')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Snimanje')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Sesije')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Profil')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(of: navigationBar, matching: find.text('Snimanje')),
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('Live HAR'), findsOneWidget);
     expect(find.text('Zaustavljeno'), findsOneWidget);
     expect(find.text('Start'), findsOneWidget);
