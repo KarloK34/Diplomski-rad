@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
+import 'package:gait_sense/services/auth_repository.dart';
 import 'package:gait_sense/services/user_preferences_repository.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +27,55 @@ Widget _withPrefs(Widget child) {
   );
 }
 
+/// Minimal stand-in for [User] — `noSuchMethod` covers the dozens of members
+/// this test never touches; only `uid`/`email` need real implementations.
+class _FakeUser implements User {
+  const _FakeUser();
+
+  @override
+  String get uid => 'test-uid';
+
+  @override
+  String? get email => 'test@example.com';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Pre-authenticated [AuthRepository] fake, since this test file never calls
+/// `Firebase.initializeApp()`.
+class _FakeAuthRepository implements AuthRepository {
+  @override
+  Stream<User?> get authStateChanges => Stream.value(const _FakeUser());
+
+  @override
+  User? get currentUser => const _FakeUser();
+
+  @override
+  String? get googleServerClientId => null;
+
+  @override
+  String? get googleClientId => null;
+
+  @override
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<void> signUpWithEmail({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<void> signInWithGoogle() async {}
+
+  @override
+  Future<void> signOut() async {}
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -32,7 +83,11 @@ void main() {
   testWidgets('app renders bottom navigation and opens recording tab', (
     tester,
   ) async {
-    await tester.pumpWidget(const GaitSenseApp());
+    await tester.pumpWidget(
+      GaitSenseApp(authRepository: _FakeAuthRepository()),
+    );
+    // Settles the auth-status → router-redirect chain before asserting.
+    await tester.pumpAndSettle();
 
     final navigationBar = find.byType(NavigationBar);
     expect(find.text('Gait Sense'), findsOneWidget);

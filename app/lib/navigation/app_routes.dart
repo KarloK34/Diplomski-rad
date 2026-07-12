@@ -34,6 +34,15 @@ abstract final class AppRoutes {
 
   /// Settings path, nested under the profile tab.
   static const profileSettings = '/profile/$settingsSegment';
+
+  /// Shown while sign-in status is not yet known.
+  static const splash = '/splash';
+
+  /// Login path.
+  static const login = '/login';
+
+  /// Signup path.
+  static const signup = '/signup';
 }
 
 /// Top-level tab identifiers.

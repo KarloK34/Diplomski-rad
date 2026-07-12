@@ -4,6 +4,8 @@
 /// `widgets/**` files.
 library;
 
+export 'buttons/google_sign_in_button.dart';
+export 'buttons/primary_button.dart';
 export 'buttons/recording_fab.dart';
 export 'cards/action_card.dart';
 export 'cards/app_card.dart';
@@ -12,8 +14,11 @@ export 'cards/empty_state_card.dart';
 export 'cards/info_card.dart';
 export 'cards/metric_tile.dart';
 export 'cards/profile_header_card.dart';
+export 'forms/email_field.dart';
+export 'forms/password_field.dart';
 export 'indicators/prediction_ticker.dart';
 export 'indicators/session_limit_bar.dart';
+export 'layout/app_logo.dart';
 export 'layout/metric_grid.dart';
 export 'layout/recording_status_panel.dart';
 export 'layout/screen_body.dart';

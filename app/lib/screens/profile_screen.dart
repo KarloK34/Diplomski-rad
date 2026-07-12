@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gait_sense/blocs/auth/auth_cubit.dart';
+import 'package:gait_sense/extensions/snackbar_context.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
+import 'package:gait_sense/services/auth_repository.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 
-/// Profile tab with user settings entry points.
+/// Profile tab with account info and settings entry points.
 class ProfileScreen extends StatelessWidget {
   /// Creates the profile screen.
   const ProfileScreen({super.key});
@@ -12,6 +16,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spacing = context.spacing;
+    final user = context.watch<AuthCubit>().state.user;
     return ScreenBody(
       children: [
         const ScreenHeader(
@@ -19,7 +24,10 @@ class ProfileScreen extends StatelessWidget {
           subtitle: 'Korisnički podaci, postavke i privatnost',
         ),
         SizedBox(height: spacing.lg),
-        const ProfileHeaderCard(name: 'Korisnik', subtitle: 'Lokalni profil'),
+        ProfileHeaderCard(
+          name: user?.email ?? 'Korisnik',
+          subtitle: 'Prijavljeni račun',
+        ),
         SizedBox(height: spacing.md),
         DividedListCard(
           items: [
@@ -41,9 +49,25 @@ class ProfileScreen extends StatelessWidget {
               subtitle: 'Gait Sense MVP',
               showChevron: false,
             ),
+            NavigationListTile(
+              icon: Icons.logout,
+              title: 'Odjava',
+              showChevron: false,
+              onTap: () => _signOut(context),
+            ),
           ],
         ),
       ],
     );
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    try {
+      await context.read<AuthRepository>().signOut();
+    } on Object {
+      if (context.mounted) {
+        context.showSnackBar('Odjava nije uspjela. Pokušajte ponovo.');
+      }
+    }
   }
 }
