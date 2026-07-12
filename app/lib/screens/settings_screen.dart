@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gait_sense/extensions/snackbar_context.dart';
 import 'package:gait_sense/services/user_preferences_repository.dart';
+import 'package:gait_sense/theme/theme_context.dart';
 
 /// Screen for editing persistent user preferences, currently only body height.
 ///
@@ -50,9 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setHeightCm(heightCm);
     if (!mounted) return;
     setState(() => _saving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Postavke su spremljene.')),
-    );
+    context.showSnackBar('Postavke su spremljene.');
   }
 
   @override
@@ -76,14 +76,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       'Visina tijela',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: context.textStyles.titleMedium,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Koristi se za procjenu duljine koraka i brzine hoda '
                       'inverted pendulum metodom (Zijlstra & Hof, 2003).',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      style: context.textStyles.bodySmall?.copyWith(
+                        color: context.colors.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 16),
