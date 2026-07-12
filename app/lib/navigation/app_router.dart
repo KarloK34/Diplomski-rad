@@ -1,9 +1,12 @@
 import 'package:flutter/widgets.dart';
+import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
 import 'package:gait_sense/navigation/main_shell.dart';
+import 'package:gait_sense/screens/debug_sensors/debug_sensors_screen.dart';
 import 'package:gait_sense/screens/home_screen.dart';
-import 'package:gait_sense/screens/live_har_screen.dart';
+import 'package:gait_sense/screens/live_har/live_har_screen.dart';
 import 'package:gait_sense/screens/profile_screen.dart';
+import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:gait_sense/screens/sessions_screen.dart';
 import 'package:gait_sense/screens/settings_screen.dart';
 import 'package:go_router/go_router.dart';
@@ -42,6 +45,30 @@ GoRouter createAppRouter() {
                 path: AppRoutes.record,
                 name: AppTab.record.name,
                 builder: (context, state) => const LiveHarScreen(),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.recordSummarySegment,
+                    name: AppSubRoute.recordSummary.name,
+                    // `extra` is in-memory only and not restored across
+                    // process death — bounce back rather than crash if this
+                    // route is ever reached without a session attached.
+                    redirect: (context, state) =>
+                        state.extra is SessionLog ? null : AppRoutes.record,
+                    builder: (context, state) => SessionSummaryScreen(
+                      session: state.extra! as SessionLog,
+                    ),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.recordDebugSensorsSegment,
+                    name: AppSubRoute.recordDebugSensors.name,
+                    builder: (context, state) => const DebugSensorsScreen(),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.settingsSegment,
+                    name: AppSubRoute.recordSettings.name,
+                    builder: (context, state) => const SettingsScreen(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -64,8 +91,8 @@ GoRouter createAppRouter() {
                 builder: (context, state) => const ProfileScreen(),
                 routes: [
                   GoRoute(
-                    path: 'settings',
-                    name: 'profileSettings',
+                    path: AppRoutes.settingsSegment,
+                    name: AppSubRoute.profileSettings.name,
                     builder: (context, state) => const SettingsScreen(),
                   ),
                 ],

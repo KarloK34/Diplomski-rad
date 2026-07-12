@@ -7,16 +7,21 @@ import 'package:gait_sense/app.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
-import 'package:gait_sense/screens/session_summary_screen.dart';
+import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
+import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:gait_sense/services/user_preferences_repository.dart';
+import 'package:gait_sense/theme/gait_sense_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Wraps [child] in a [RepositoryProvider] that serves a real
 /// [UserPreferencesRepository] backed by an in-memory SharedPreferences store.
+///
+/// Applies [GaitSenseTheme] rather than a bare [MaterialApp] theme, since the
+/// widget tree reads spacing/color/text-style tokens off it.
 Widget _withPrefs(Widget child) {
   return RepositoryProvider<UserPreferencesRepository>(
     create: (_) => UserPreferencesRepository(),
-    child: MaterialApp(home: child),
+    child: MaterialApp(theme: GaitSenseTheme.light(), home: child),
   );
 }
 
@@ -209,18 +214,12 @@ void main() {
   testWidgets('session summary shows error scaffold on compute failure', (
     tester,
   ) async {
-    // A SessionLog with a null startedAt-equivalent is not constructible, so
-    // we verify the error path indirectly: the _ErrorScaffold renders its
-    // icon and back button. In production, compute() failures surface here
-    // rather than silently producing a blank screen.
-    //
-    // This test is structural: it pumps a _ErrorScaffold directly to confirm
-    // the widget tree is sound, not to trigger a real compute() exception.
+    // A compute() failure can't be forced directly, so this pumps the error
+    // view directly to verify it renders correctly.
     await tester.pumpWidget(
-      const MaterialApp(
-        home: _ErrorScaffoldHarness(
-          error: 'Simulated compute error',
-        ),
+      MaterialApp(
+        theme: GaitSenseTheme.light(),
+        home: const SessionSummaryErrorView(error: 'Simulated compute error'),
       ),
     );
 
@@ -245,52 +244,4 @@ Future<void> pumpUntilFound(WidgetTester tester, Finder finder) async {
   }
 
   fail('Timed out waiting for async summary content.');
-}
-
-/// Test harness that mirrors the summary error scaffold through the public
-/// [SessionSummaryScreen] API surface — used only to verify the error widget
-/// tree is well-formed.
-class _ErrorScaffoldHarness extends StatelessWidget {
-  const _ErrorScaffoldHarness({required this.error});
-  final String error;
-
-  @override
-  Widget build(BuildContext context) {
-    // Directly build the same subtree that FutureBuilder produces on error,
-    // without relying on a real compute() exception (which would require
-    // spawning an isolate in a test environment).
-    return Scaffold(
-      appBar: AppBar(title: const Text('Sažetak sesije')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Nije moguće izračunati sažetak sesije.',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Natrag'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
