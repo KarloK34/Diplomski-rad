@@ -7,13 +7,18 @@ environment:
   sdk: ^3.12.0
 
 dependencies:
+  cloud_firestore: ^6.6.0
   cupertino_icons: ^1.0.8
   equatable: ^2.0.8
+  firebase_auth: ^6.5.4
+  firebase_core: ^4.11.0
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
   flutter_foreground_task: ^9.2.2
+  flutter_svg: ^2.3.0
   go_router: ^17.3.0
+  google_sign_in: ^7.2.0
   path_provider: ^2.1.5
   sensors_plus: ^7.0.0
   share_plus: ^13.1.0
@@ -28,6 +33,12 @@ dependencies:
 #  - flutter_foreground_task keeps the 50 Hz sampler alive with the screen off.
 #  - path_provider resolves the documents directory for session-log JSON export.
 #  - share_plus invokes the OS share sheet to export a session JSON.
+#  - firebase_core/firebase_auth/cloud_firestore: account auth and cloud sync
+#    of session summaries (raw IMU samples stay local-only, see
+#    SessionSummaryRepository).
+#  - google_sign_in 7.x: Google sign-in option on the login/signup screens;
+#    requires google_sign_in_android >=7.2.12 for AGP 9 support.
+#  - flutter_svg renders the Google "G" logo asset on GoogleSignInButton.
 
 dev_dependencies:
   flutter_test:
@@ -42,6 +53,7 @@ flutter:
   assets:
     - assets/cnn_final.tflite
     - assets/cnn_final.preproc.json
+    - assets/icons/google_logo.svg
     # Test-only: small (~310 KB) truncated parity fixtures, bundled so the
     # on-device inference parity test (integration_test/) can read the expected
     # Python TFLite outputs via rootBundle. 

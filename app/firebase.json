@@ -1,0 +1,25 @@
+{
+    "firestore": {
+        "rules": "firestore.rules"
+    },
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "gait-sense-ac69a",
+                    "appId": "1:900038882223:android:08192f2c323e37516fb55a",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "gait-sense-ac69a",
+                    "configurations": {
+                        "android": "1:900038882223:android:08192f2c323e37516fb55a",
+                        "ios": "1:900038882223:ios:588d6c2aa00074666fb55a"
+                    }
+                }
+            }
+        }
+    }
+}

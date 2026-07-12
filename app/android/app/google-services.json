@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "900038882223",
+    "project_id": "gait-sense-ac69a",
+    "storage_bucket": "gait-sense-ac69a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:900038882223:android:08192f2c323e37516fb55a",
+        "android_client_info": {
+          "package_name": "com.karlokraml.gaitsense"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "900038882223-8ur8ge2s5duga2a801nkjassp8pu7pt8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgpI74C9zOTAp1IHDBad4i-jSFecYIvdc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "900038882223-8ur8ge2s5duga2a801nkjassp8pu7pt8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

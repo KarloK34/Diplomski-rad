@@ -88,5 +88,17 @@
 			<string>UIInterfaceOrientationLandscapeLeft</string>
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
+		<!-- Google Sign-In OAuth redirect. REVERSED_CLIENT_ID derived from the
+		     `iosClientId` in lib/firebase_options.dart (reverse the dotted
+		     segments of the client ID's ".apps.googleusercontent.com" suffix). -->
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.900038882223-3t6c932ln2upga6fm1s704lrtca80usg</string>
+				</array>
+			</dict>
+		</array>
 	</dict>
 </plist>
