@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/ui/ui_event.dart';
 import 'package:gait_sense/blocs/ui/ui_state.dart';
@@ -9,31 +10,24 @@ import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/services/session_limit.dart';
 import 'package:gait_sense/services/session_log_repository.dart';
+import 'package:gait_sense/services/session_summary_repository.dart';
 
-/// Size of the rolling window over which inference-latency percentiles are
-/// computed: the most recent [_latencyWindow] predictions (~77 s, at one
-/// window per 1.28 s — stride 64 at 50 Hz). A bounded window reports recent
-/// conditions rather than a session-cumulative average that hides regressions.
+/// Rolling window size for latency percentiles — bounded so recent
+/// regressions aren't hidden by a session-cumulative average.
 const int _latencyWindow = 60;
 
-/// Orchestrates a recording session on the UI isolate.
+/// Orchestrates a recording session on the UI isolate; the sensing/inference
+/// pipeline itself runs in the service isolate.
 ///
-/// Sits on the UI-isolate side of the foreground-service boundary (hence the
-/// name): it drives the [RecordingController] lifecycle, mirrors every incoming
-/// prediction into the [SessionLogRepository], and derives the live readouts
-/// (elapsed time, prediction count, rolling latency percentiles) the screen
-/// renders. The sensing/inference pipeline itself runs in the service isolate.
-///
-/// When `elapsed` reaches [maxSessionDuration] the bloc emits
-/// [UiSessionLimitReached] internally, which triggers the same save flow as a
-/// user-initiated stop.
+/// Reaching [maxSessionDuration] emits [UiSessionLimitReached] internally, so
+/// auto-stop reuses the same save flow as a user-initiated stop.
 class UiBloc extends Bloc<UiEvent, UiState> {
-  /// Creates the bloc around its injected dependencies. The clock, tick
-  /// interval, and max session duration are injectable so the elapsed-time
+  /// Clock, tick interval, and max duration are injectable so elapsed-time
   /// and auto-stop logic are deterministic in tests.
   UiBloc({
     required RecordingController controller,
     required SessionLogRepository repository,
+    SessionSummaryRepository? summaryRepository,
     Map<String, dynamic> modelInfo = harModelInfo,
     DateTime Function() now = DateTime.now,
     Duration tickInterval = const Duration(seconds: 1),
@@ -41,6 +35,7 @@ class UiBloc extends Bloc<UiEvent, UiState> {
   }) : this._(
          controller,
          repository,
+         summaryRepository,
          modelInfo,
          now,
          tickInterval,
@@ -50,6 +45,7 @@ class UiBloc extends Bloc<UiEvent, UiState> {
   UiBloc._(
     this._controller,
     this._repository,
+    this._summaryRepository,
     this._modelInfo,
     this._now,
     this._tickInterval,
@@ -65,12 +61,12 @@ class UiBloc extends Bloc<UiEvent, UiState> {
 
   final RecordingController _controller;
   final SessionLogRepository _repository;
+  final SessionSummaryRepository? _summaryRepository;
   final Map<String, dynamic> _modelInfo;
   final DateTime Function() _now;
   final Duration _tickInterval;
 
-  /// Maximum allowed session duration. Exposed for widget-layer display
-  /// (e.g. a countdown or progress indicator).
+  /// Maximum allowed session duration, exposed for widget-layer display.
   final Duration maxSessionDuration;
 
   StreamSubscription<ActivityPrediction>? _predictionSubscription;
@@ -78,9 +74,8 @@ class UiBloc extends Bloc<UiEvent, UiState> {
   Timer? _ticker;
   DateTime _startedAt = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // Recent inference latencies, capped at _latencyWindow, for the rolling
-  // p50/p95 readout. Kept off the state object: only the two computed
-  // percentiles are surfaced to the UI.
+  // Recent latencies for the rolling p50/p95 readout — kept off the state
+  // object since only the computed percentiles are surfaced.
   final List<int> _latencies = [];
 
   Future<void> _onStarted(
@@ -140,10 +135,23 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     _sampleSubscription = null;
 
     await _repository.finishAndSave(stoppedAt: _now());
+    final savedSession = _repository.lastSession;
+    // Fire-and-forget: local save is the offline-safe path and must not block
+    // on network. Firestore retries queued offline writes itself, so a
+    // logged error here means the sync failed for another reason.
+    if (savedSession != null) {
+      unawaited(
+        _summaryRepository
+            ?.syncSession(savedSession)
+            .catchError(
+              (Object error) => debugPrint('Session sync failed: $error'),
+            ),
+      );
+    }
     emit(
       state.copyWith(
         status: RecordingStatus.saved,
-        finishedSession: _repository.lastSession,
+        finishedSession: savedSession,
         stoppedByLimit: stoppedByLimit,
       ),
     );
@@ -188,8 +196,7 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     final elapsed = now.difference(_startedAt);
     emit(state.copyWith(elapsed: elapsed));
 
-    // Auto-stop when the hard limit is reached. Dispatched as an event so the
-    // save flow runs through the normal handler and remains testable.
+    // Dispatched as an event, not called directly, so auto-stop stays testable.
     if (hasReachedSessionLimit(
       startedAt: _startedAt,
       now: now,
@@ -199,10 +206,9 @@ class UiBloc extends Bloc<UiEvent, UiState> {
     }
   }
 
-  /// Nearest-rank percentile — the inverse-CDF estimator (Definition 1 in
-  /// Hyndman & Fan, 1996, https://doi.org/10.2307/2684934). No interpolation
-  /// between samples is used: latency is reported in integer milliseconds, so
-  /// an interpolated quantile would invent values between measured points.
+  /// Nearest-rank percentile (Hyndman & Fan, 1996, Definition 1,
+  /// https://doi.org/10.2307/2684934) — no interpolation, since latency is
+  /// reported in integer milliseconds.
   static int _percentile(List<int> sortedAscending, double p) {
     if (sortedAscending.isEmpty) return 0;
     final rank = (p / 100 * sortedAscending.length).ceil();

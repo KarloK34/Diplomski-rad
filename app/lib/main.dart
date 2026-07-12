@@ -1,11 +1,14 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:gait_sense/app.dart';
+import 'package:gait_sense/firebase_options.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Opens the port the foreground-service isolate uses to send data back to the
-  // UI isolate. Must run before any addTaskDataCallback/sendDataToMain call.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Opens the isolate communication port — must run before any
+  // addTaskDataCallback/sendDataToMain call.
   FlutterForegroundTask.initCommunicationPort();
   runApp(const GaitSenseApp());
 }
