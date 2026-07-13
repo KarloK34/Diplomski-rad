@@ -7,10 +7,10 @@ import 'package:gait_sense/blocs/ui/ui_state.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/har_model_info.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
+import 'package:gait_sense/repositories/session_log_repository.dart';
+import 'package:gait_sense/repositories/session_summary_repository.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/services/session_limit.dart';
-import 'package:gait_sense/services/session_log_repository.dart';
-import 'package:gait_sense/services/session_summary_repository.dart';
 
 /// Rolling window size for latency percentiles — bounded so recent
 /// regressions aren't hidden by a session-cumulative average.

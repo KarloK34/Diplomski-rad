@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/auth/signup_cubit.dart';
-import 'package:gait_sense/services/auth_repository.dart';
+import 'package:gait_sense/repositories/auth_repository.dart';
 
 /// Provides a screen-scoped [SignupCubit] wired to the app's [AuthRepository].
 class SignupProvider extends StatelessWidget {

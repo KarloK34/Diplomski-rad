@@ -7,8 +7,8 @@ import 'package:gait_sense/blocs/ui/ui_event.dart';
 import 'package:gait_sense/blocs/ui/ui_state.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
+import 'package:gait_sense/repositories/session_log_repository.dart';
 import 'package:gait_sense/services/recording_controller.dart';
-import 'package:gait_sense/services/session_log_repository.dart';
 
 /// In-memory [RecordingController]: counts lifecycle calls and lets a test feed
 /// predictions through [emit]. No platform channels, so it runs on the host VM.

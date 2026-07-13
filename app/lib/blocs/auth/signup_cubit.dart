@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/auth/auth_form_state.dart';
-import 'package:gait_sense/services/auth_repository.dart';
+import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/utils/auth_error_messages.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 

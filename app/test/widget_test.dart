@@ -8,10 +8,10 @@ import 'package:gait_sense/app.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/repositories/auth_repository.dart';
+import 'package:gait_sense/repositories/user_preferences_repository.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
-import 'package:gait_sense/services/auth_repository.dart';
-import 'package:gait_sense/services/user_preferences_repository.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

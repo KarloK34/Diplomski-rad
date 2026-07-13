@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/extensions/snackbar_context.dart';
-import 'package:gait_sense/services/user_preferences_repository.dart';
+import 'package:gait_sense/repositories/user_preferences_repository.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 
 /// Screen for editing persistent user preferences, currently only body height.

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
-import 'package:gait_sense/services/session_log_repository.dart';
+import 'package:gait_sense/repositories/session_log_repository.dart';
 
 /// Serialization round-trips and the file-writing path of the session log.
 /// All host-runnable: the repository's documents directory is injected with a

@@ -8,11 +8,11 @@ import 'package:gait_sense/blocs/ui/ui_bloc.dart';
 import 'package:gait_sense/firebase_options.dart';
 import 'package:gait_sense/navigation/app_router.dart';
 import 'package:gait_sense/navigation/go_router_refresh_stream.dart';
-import 'package:gait_sense/services/auth_repository.dart';
+import 'package:gait_sense/repositories/auth_repository.dart';
+import 'package:gait_sense/repositories/session_log_repository.dart';
+import 'package:gait_sense/repositories/session_summary_repository.dart';
+import 'package:gait_sense/repositories/user_preferences_repository.dart';
 import 'package:gait_sense/services/gait_foreground_service.dart';
-import 'package:gait_sense/services/session_log_repository.dart';
-import 'package:gait_sense/services/session_summary_repository.dart';
-import 'package:gait_sense/services/user_preferences_repository.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
 import 'package:go_router/go_router.dart';
 

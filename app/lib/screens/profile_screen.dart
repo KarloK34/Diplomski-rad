@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/auth/auth_cubit.dart';
 import 'package:gait_sense/extensions/snackbar_context.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
-import 'package:gait_sense/services/auth_repository.dart';
+import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';

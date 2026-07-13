@@ -2,11 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/repositories/user_preferences_repository.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_computation.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_content.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_loading_view.dart';
-import 'package:gait_sense/services/user_preferences_repository.dart';
 
 /// Read-only summary of a finished recording session.
 ///

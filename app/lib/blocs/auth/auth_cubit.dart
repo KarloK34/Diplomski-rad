@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/auth/auth_state.dart';
-import 'package:gait_sense/services/auth_repository.dart';
+import 'package:gait_sense/repositories/auth_repository.dart';
 
 /// Mirrors `AuthRepository.authStateChanges` into an [AuthState] for the whole
 /// app to react to — chiefly the router's redirect gate.
