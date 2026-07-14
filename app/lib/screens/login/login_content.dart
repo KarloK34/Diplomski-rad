@@ -44,6 +44,7 @@ class LoginContent extends StatelessWidget {
                     EmailField(
                       value: state.email,
                       onChanged: cubit.emailChanged,
+                      textInputAction: TextInputAction.next,
                     ),
                     SizedBox(height: spacing.sm),
                     PasswordField(

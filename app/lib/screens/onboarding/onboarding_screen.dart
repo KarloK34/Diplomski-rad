@@ -123,13 +123,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-/// First onboarding page: brand mark + a short value-prop paragraph.
+/// First onboarding page: brand mark, personal greeting, and a short
+/// value-prop paragraph.
 class _WelcomePage extends StatelessWidget {
   const _WelcomePage();
 
   @override
   Widget build(BuildContext context) {
     final spacing = context.spacing;
+    final firstName = _firstNameFrom(
+      context.watch<AuthCubit>().state.user?.displayName,
+    );
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: spacing.lg),
       child: Column(
@@ -139,6 +143,15 @@ class _WelcomePage extends StatelessWidget {
             tagline: 'Analiza hoda pomoću senzora vašeg telefona',
           ),
           SizedBox(height: spacing.lg),
+          if (firstName != null) ...[
+            Text(
+              'Bok, $firstName!',
+              style: context.textStyles.titleLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: spacing.xs),
+          ],
           Text(
             'Gait Sense prati vaš hod izravno na uređaju. U slijedećih '
             'nekoliko koraka objašnjeno je kako snimiti sesiju koja daje '
@@ -152,4 +165,12 @@ class _WelcomePage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Takes the first token of a Firebase [displayName] ("Ana Anić" → "Ana"),
+/// or null if there is no name to greet with.
+String? _firstNameFrom(String? displayName) {
+  final trimmed = displayName?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  return trimmed.split(RegExp(r'\s+')).first;
 }

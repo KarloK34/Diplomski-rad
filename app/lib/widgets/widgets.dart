@@ -16,6 +16,7 @@ export 'cards/info_card.dart';
 export 'cards/metric_tile.dart';
 export 'cards/profile_header_card.dart';
 export 'forms/email_field.dart';
+export 'forms/name_field.dart';
 export 'forms/password_field.dart';
 export 'indicators/onboarding_dots_indicator.dart';
 export 'indicators/prediction_ticker.dart';

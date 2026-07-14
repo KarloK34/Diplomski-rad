@@ -46,7 +46,7 @@ class _FakeUser implements User {
 /// `Firebase.initializeApp()`.
 class _FakeAuthRepository implements AuthRepository {
   @override
-  Stream<User?> get authStateChanges => Stream.value(const _FakeUser());
+  Stream<User?> get userChanges => Stream.value(const _FakeUser());
 
   @override
   User? get currentUser => const _FakeUser();
@@ -67,6 +67,8 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> signUpWithEmail({
     required String email,
     required String password,
+    required String firstName,
+    required String lastName,
   }) async {}
 
   @override

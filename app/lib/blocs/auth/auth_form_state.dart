@@ -27,12 +27,16 @@ enum AuthSubmitMethod {
 
 /// Form state shared by `LoginCubit` and `SignupCubit` — both are a plain
 /// email/password form with the same field shape, differing only in which
-/// repository call and error messages `submitted()` uses.
+/// repository call and error messages `submitted()` uses. [firstName]/
+/// [lastName] are populated by `SignupCubit` only; `LoginCubit` never sets
+/// them and they stay at their default.
 class AuthFormState extends Equatable {
   /// Creates a state with the given field values.
   const AuthFormState({
     this.email = '',
     this.password = '',
+    this.firstName = '',
+    this.lastName = '',
     this.status = AuthFormStatus.initial,
     this.submitMethod,
     this.errorMessage,
@@ -43,6 +47,12 @@ class AuthFormState extends Equatable {
 
   /// Current password field text.
   final String password;
+
+  /// Current first name field text; signup-only.
+  final String firstName;
+
+  /// Current last name field text; signup-only.
+  final String lastName;
 
   /// Where the submission currently stands.
   final AuthFormStatus status;
@@ -58,11 +68,15 @@ class AuthFormState extends Equatable {
   AuthFormState copyWith({
     String? email,
     String? password,
+    String? firstName,
+    String? lastName,
     AuthFormStatus? status,
   }) {
     return AuthFormState(
       email: email ?? this.email,
       password: password ?? this.password,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
       status: status ?? this.status,
       submitMethod: submitMethod,
       errorMessage: errorMessage,
@@ -73,6 +87,8 @@ class AuthFormState extends Equatable {
   List<Object?> get props => [
     email,
     password,
+    firstName,
+    lastName,
     status,
     submitMethod,
     errorMessage,

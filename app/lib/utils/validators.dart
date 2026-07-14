@@ -21,3 +21,12 @@ String? passwordFormatError(String? value) {
   if (text.length < 6) return 'Lozinka mora imati barem 6 znakova.';
   return null;
 }
+
+/// Returns a Croatian error message if [value] is empty after trimming, or
+/// `null` if it passes. [fieldName] is the lowercase noun used in the
+/// message, e.g. `"ime"` or `"prezime"`.
+String? requiredNameError(String? value, String fieldName) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty) return 'Unesite $fieldName.';
+  return null;
+}

@@ -41,9 +41,26 @@ class SignupContent extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: spacing.md),
+                    NameField(
+                      value: state.firstName,
+                      onChanged: cubit.firstNameChanged,
+                      labelText: 'Ime',
+                      fieldName: 'ime',
+                      textInputAction: TextInputAction.next,
+                    ),
+                    SizedBox(height: spacing.sm),
+                    NameField(
+                      value: state.lastName,
+                      onChanged: cubit.lastNameChanged,
+                      labelText: 'Prezime',
+                      fieldName: 'prezime',
+                      textInputAction: TextInputAction.next,
+                    ),
+                    SizedBox(height: spacing.sm),
                     EmailField(
                       value: state.email,
                       onChanged: cubit.emailChanged,
+                      textInputAction: TextInputAction.next,
                     ),
                     SizedBox(height: spacing.sm),
                     PasswordField(

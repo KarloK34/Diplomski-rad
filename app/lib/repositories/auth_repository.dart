@@ -34,8 +34,14 @@ class AuthRepository {
 
   Future<void>? _googleSignInInitialization;
 
-  /// Emits the signed-in user, or null when signed out.
-  Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
+  /// Emits the signed-in user (or null when signed out), and re-emits on
+  /// profile changes like [signUpWithEmail]'s `updateDisplayName` call.
+  ///
+  /// Uses `userChanges()` rather than `authStateChanges()` — the latter only
+  /// fires on sign-in/sign-out, so a display name set right after account
+  /// creation would never reach subscribers already holding the pre-update
+  /// `User` from the sign-in event.
+  Stream<User?> get userChanges => _firebaseAuth.userChanges();
 
   /// The currently signed-in user, or null when signed out.
   User? get currentUser => _firebaseAuth.currentUser;
@@ -53,16 +59,28 @@ class AuthRepository {
     );
   }
 
-  /// Creates a new account with [email] and [password].
+  /// Creates a new account with [email] and [password], then sets its
+  /// display name from [firstName]/[lastName].
+  ///
+  /// Reads the freshly-created account back through [currentUser] rather
+  /// than keeping the `UserCredential.user` reference — `updateDisplayName`
+  /// updates Firebase Auth's internal current-user pointer in place rather
+  /// than mutating the `User` instance that made the call, so re-reading
+  /// [currentUser] is what actually reflects the change.
   ///
   /// Throws [FirebaseAuthException] on failure.
   Future<void> signUpWithEmail({
     required String email,
     required String password,
+    required String firstName,
+    required String lastName,
   }) async {
     await _firebaseAuth.createUserWithEmailAndPassword(
       email: email,
       password: password,
+    );
+    await _firebaseAuth.currentUser?.updateDisplayName(
+      '${firstName.trim()} ${lastName.trim()}',
     );
   }
 

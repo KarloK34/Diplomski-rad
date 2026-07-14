@@ -20,21 +20,61 @@ class SignupCubit extends Cubit<AuthFormState> {
 
   /// Updates the email field as the user types
   void emailChanged(String email) {
-    emit(AuthFormState(email: email, password: state.password));
+    emit(
+      AuthFormState(
+        email: email,
+        password: state.password,
+        firstName: state.firstName,
+        lastName: state.lastName,
+      ),
+    );
   }
 
   /// Updates the password field as the user types
   void passwordChanged(String password) {
-    emit(AuthFormState(email: state.email, password: password));
+    emit(
+      AuthFormState(
+        email: state.email,
+        password: password,
+        firstName: state.firstName,
+        lastName: state.lastName,
+      ),
+    );
   }
 
-  /// Submits the current email/password to create a new account.
+  /// Updates the first name field as the user types
+  void firstNameChanged(String firstName) {
+    emit(
+      AuthFormState(
+        email: state.email,
+        password: state.password,
+        firstName: firstName,
+        lastName: state.lastName,
+      ),
+    );
+  }
+
+  /// Updates the last name field as the user types
+  void lastNameChanged(String lastName) {
+    emit(
+      AuthFormState(
+        email: state.email,
+        password: state.password,
+        firstName: state.firstName,
+        lastName: lastName,
+      ),
+    );
+  }
+
+  /// Submits the current email/password/name to create a new account.
   Future<void> submitted() async {
     if (state.status == AuthFormStatus.submitting) return;
     emit(
       AuthFormState(
         email: state.email,
         password: state.password,
+        firstName: state.firstName,
+        lastName: state.lastName,
         status: AuthFormStatus.submitting,
         submitMethod: AuthSubmitMethod.email,
       ),
@@ -43,6 +83,8 @@ class SignupCubit extends Cubit<AuthFormState> {
       await _authRepository.signUpWithEmail(
         email: state.email,
         password: state.password,
+        firstName: state.firstName,
+        lastName: state.lastName,
       );
       // The router may have already navigated away and closed this cubit
       // while the await above was pending.
@@ -63,6 +105,8 @@ class SignupCubit extends Cubit<AuthFormState> {
       AuthFormState(
         email: state.email,
         password: state.password,
+        firstName: state.firstName,
+        lastName: state.lastName,
         status: AuthFormStatus.submitting,
         submitMethod: AuthSubmitMethod.google,
       ),
@@ -74,7 +118,14 @@ class SignupCubit extends Cubit<AuthFormState> {
     } on GoogleSignInException catch (error) {
       if (isClosed) return;
       if (error.code == GoogleSignInExceptionCode.canceled) {
-        emit(AuthFormState(email: state.email, password: state.password));
+        emit(
+          AuthFormState(
+            email: state.email,
+            password: state.password,
+            firstName: state.firstName,
+            lastName: state.lastName,
+          ),
+        );
         return;
       }
       emit(_failure('Registracija putem Google računa nije uspjela.'));
@@ -91,6 +142,8 @@ class SignupCubit extends Cubit<AuthFormState> {
     return AuthFormState(
       email: state.email,
       password: state.password,
+      firstName: state.firstName,
+      lastName: state.lastName,
       status: AuthFormStatus.failure,
       errorMessage: message,
     );

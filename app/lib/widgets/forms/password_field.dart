@@ -12,6 +12,7 @@ class PasswordField extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.labelText = 'Lozinka',
+    this.textInputAction,
     super.key,
   });
 
@@ -23,6 +24,10 @@ class PasswordField extends StatefulWidget {
 
   /// Field label, overridable for a "confirm password" variant.
   final String labelText;
+
+  /// Text input action button on the keyboard, e.g. "next" or "done".
+  /// Defaults to "done" if not provided.
+  final TextInputAction? textInputAction;
 
   @override
   State<PasswordField> createState() => _PasswordFieldState();
@@ -49,6 +54,7 @@ class _PasswordFieldState extends State<PasswordField> {
           onPressed: () => setState(() => _obscureText = !_obscureText),
         ),
       ),
+      textInputAction: widget.textInputAction ?? TextInputAction.done,
       validator: passwordFormatError,
     );
   }

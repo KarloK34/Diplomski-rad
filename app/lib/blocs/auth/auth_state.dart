@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 /// Whether the signed-in status is still being determined, or resolved.
 enum AuthStatus {
-  /// Firebase's first `authStateChanges` event has not arrived yet.
+  /// Firebase's first `userChanges` event has not arrived yet.
   unknown,
 
   /// A user is signed in.
@@ -13,7 +13,7 @@ enum AuthStatus {
   unauthenticated,
 }
 
-/// Current sign-in status, mirrored from `AuthRepository.authStateChanges`.
+/// Current sign-in status, mirrored from `AuthRepository.userChanges`.
 class AuthState extends Equatable {
   /// Creates a state with the given [status] and [user].
   const AuthState({required this.status, this.user});

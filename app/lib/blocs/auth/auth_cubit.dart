@@ -5,14 +5,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/auth/auth_state.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
 
-/// Mirrors `AuthRepository.authStateChanges` into an [AuthState] for the whole
+/// Mirrors `AuthRepository.userChanges` into an [AuthState] for the whole
 /// app to react to — chiefly the router's redirect gate.
 class AuthCubit extends Cubit<AuthState> {
-  /// Subscribes to [authRepository]'s auth-state stream immediately.
+  /// Subscribes to [authRepository]'s user-changes stream immediately.
   AuthCubit({required AuthRepository authRepository}) : this._(authRepository);
 
   AuthCubit._(this._authRepository) : super(const AuthState.unknown()) {
-    _subscription = _authRepository.authStateChanges.listen((user) {
+    _subscription = _authRepository.userChanges.listen((user) {
       emit(
         user == null
             ? const AuthState.unauthenticated()
