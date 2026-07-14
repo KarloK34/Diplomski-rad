@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gait_sense/blocs/ui/ui_bloc.dart';
-import 'package:gait_sense/blocs/ui/ui_event.dart';
-import 'package:gait_sense/blocs/ui/ui_state.dart';
+import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
+import 'package:gait_sense/blocs/recording_session/recording_session_event.dart';
+import 'package:gait_sense/blocs/recording_session/recording_session_state.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
@@ -21,7 +21,9 @@ class _FakeController implements RecordingController {
   int startCount = 0;
   int stopCount = 0;
   int permissionCount = 0;
+  int commitCount = 0;
   FutureOr<void> Function()? onStop;
+  Error? startError;
 
   void emit(ActivityPrediction prediction) => _controller.add(prediction);
 
@@ -37,7 +39,14 @@ class _FakeController implements RecordingController {
   Future<void> requestPermissions() async => permissionCount++;
 
   @override
-  Future<void> start() async => startCount++;
+  Future<void> start() async {
+    startCount++;
+    final error = startError;
+    if (error != null) throw error;
+  }
+
+  @override
+  void commitRecording() => commitCount++;
 
   @override
   Future<void> stop() async {
@@ -77,21 +86,47 @@ void main() {
 
   setUp(() {
     controller = _FakeController();
-    tempDir = Directory.systemTemp.createTempSync('ui_bloc_test');
+    tempDir = Directory.systemTemp.createTempSync(
+      'recording_session_bloc_test',
+    );
     repository = SessionLogRepository(documentsDirectory: () async => tempDir);
   });
 
   tearDown(() => tempDir.deleteSync(recursive: true));
 
-  // A long tick interval keeps the periodic timer from emitting UiTicked during
-  // tests; elapsed-time handling is driven explicitly via UiTicked instead.
-  UiBloc buildBloc({DateTime Function()? now}) {
-    return UiBloc(
+  // A long tick interval keeps the periodic timer from emitting
+  // RecordingSessionTicked during tests; elapsed-time handling is driven
+  // explicitly via RecordingSessionTicked instead. A 1-second
+  // preparationDuration means the countdown reaches zero after exactly one
+  // manually-dispatched RecordingSessionCountdownTicked (see startRecording),
+  // rather than needing to wait on the real per-second timer.
+  RecordingSessionBloc buildBloc({DateTime Function()? now}) {
+    return RecordingSessionBloc(
       controller: controller,
       repository: repository,
       now: now ?? () => DateTime.utc(2026),
       tickInterval: const Duration(hours: 1),
+      preparationDuration: const Duration(seconds: 1),
     );
+  }
+
+  // Drives the arm -> commit sequence deterministically: starts, waits for
+  // the countdown to appear, feeds one sample through the fake controller so
+  // the readiness probe passes, then advances the countdown to zero via a
+  // manual RecordingSessionCountdownTicked — mirrors how RecordingSessionTicked
+  // is driven manually elsewhere in this file instead of relying on the real
+  // timer.
+  Future<RecordingSessionState> startRecording(
+    RecordingSessionBloc bloc,
+  ) async {
+    bloc.add(const RecordingSessionStarted());
+    await bloc.stream.firstWhere(
+      (s) => s.status == RecordingStatus.preparing,
+    );
+    controller.emitSample(sample(0));
+    await Future<void>.delayed(Duration.zero);
+    bloc.add(const RecordingSessionCountdownTicked());
+    return bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
   }
 
   test(
@@ -100,15 +135,123 @@ void main() {
       final bloc = buildBloc();
       addTearDown(bloc.close);
 
-      bloc.add(const UiRecordingStarted());
-      final state = await bloc.stream.firstWhere(
-        (s) => s.status == RecordingStatus.recording,
-      );
+      final state = await startRecording(bloc);
 
       expect(controller.permissionCount, 1);
       expect(controller.startCount, 1);
+      expect(controller.commitCount, 1);
       expect(state.predictionCount, 0);
       expect(repository.count, 0);
+    },
+  );
+
+  test(
+    'countdown elapses without a sensor sample -> unavailable, controller '
+    'stopped',
+    () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const RecordingSessionStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.preparing,
+      );
+
+      // No sample emitted this time — the readiness probe never fires.
+      bloc.add(const RecordingSessionCountdownTicked());
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.unavailable,
+      );
+
+      expect(state.status, RecordingStatus.unavailable);
+      expect(controller.stopCount, 1);
+      expect(controller.commitCount, 0);
+      expect(repository.count, 0);
+    },
+  );
+
+  test(
+    'a platform error arming the probe -> unavailable, not stuck at idle',
+    () async {
+      controller.startError = StateError('platform channel unavailable');
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const RecordingSessionStarted());
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.unavailable,
+      );
+
+      expect(state.status, RecordingStatus.unavailable);
+      expect(controller.stopCount, 1);
+      expect(controller.commitCount, 0);
+    },
+  );
+
+  test(
+    'cancelling the countdown returns to idle without starting a session',
+    () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const RecordingSessionStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.preparing,
+      );
+
+      bloc.add(const RecordingSessionCountdownCancelled());
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.idle,
+      );
+
+      expect(state.status, RecordingStatus.idle);
+      expect(controller.stopCount, 1);
+      expect(repository.count, 0);
+    },
+  );
+
+  test(
+    'a last-instant cancel racing the countdown-completing tick leaves the '
+    'bloc internally consistent either way',
+    () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const RecordingSessionStarted());
+      await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.preparing,
+      );
+      controller.emitSample(sample(0));
+      await Future<void>.delayed(Duration.zero);
+
+      // Dispatched back to back, as would happen if the user taps cancel in
+      // the same instant the countdown reaches zero.
+      bloc
+        ..add(const RecordingSessionCountdownTicked())
+        ..add(const RecordingSessionCountdownCancelled());
+
+      await bloc.stream
+          .firstWhere(
+            (s) =>
+                s.status == RecordingStatus.recording ||
+                s.status == RecordingStatus.idle,
+          )
+          .timeout(const Duration(seconds: 1));
+      // Let any still-pending racing continuation settle before asserting.
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      if (bloc.state.status == RecordingStatus.recording) {
+        // Tick won the race: the controller must still be running, not
+        // stopped out from under a UI that claims to be recording.
+        expect(controller.stopCount, 0);
+      } else {
+        // Cancel won the race: nothing should have been committed, and no
+        // orphaned session should have been opened.
+        expect(bloc.state.status, RecordingStatus.idle);
+        expect(controller.commitCount, 0);
+        expect(repository.count, 0);
+      }
     },
   );
 
@@ -118,10 +261,7 @@ void main() {
       final bloc = buildBloc();
       addTearDown(bloc.close);
 
-      bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere(
-        (s) => s.status == RecordingStatus.recording,
-      );
+      await startRecording(bloc);
 
       controller
         ..emit(prediction('wlk', latencyMs: 2))
@@ -141,8 +281,7 @@ void main() {
     final bloc = buildBloc();
     addTearDown(bloc.close);
 
-    bloc.add(const UiRecordingStarted());
-    await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+    await startRecording(bloc);
 
     controller
       ..emitSample(sample(20))
@@ -159,11 +298,10 @@ void main() {
     final bloc = buildBloc(now: () => clock);
     addTearDown(bloc.close);
 
-    bloc.add(const UiRecordingStarted());
-    await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+    await startRecording(bloc);
 
     clock = DateTime.utc(2026, 1, 1, 0, 0, 5);
-    bloc.add(const UiTicked());
+    bloc.add(const RecordingSessionTicked());
     final state = await bloc.stream.firstWhere(
       (s) => s.elapsed == const Duration(seconds: 5),
     );
@@ -175,14 +313,13 @@ void main() {
     final bloc = buildBloc();
     addTearDown(bloc.close);
 
-    bloc.add(const UiRecordingStarted());
-    await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
+    await startRecording(bloc);
     controller.emitSample(sample(20));
     await Future<void>.delayed(Duration.zero);
     controller.emit(prediction('sit', latencyMs: 3));
     await bloc.stream.firstWhere((s) => s.predictionCount == 1);
 
-    bloc.add(const UiRecordingStopped());
+    bloc.add(const RecordingSessionStopped());
     final state = await bloc.stream.firstWhere(
       (s) => s.status == RecordingStatus.saved,
     );
@@ -200,10 +337,7 @@ void main() {
       final bloc = buildBloc();
       addTearDown(bloc.close);
 
-      bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere(
-        (s) => s.status == RecordingStatus.recording,
-      );
+      await startRecording(bloc);
 
       controller.onStop = () {
         controller
@@ -211,7 +345,7 @@ void main() {
           ..emit(prediction('wlk', latencyMs: 5));
       };
 
-      bloc.add(const UiRecordingStopped());
+      bloc.add(const RecordingSessionStopped());
       final state = await bloc.stream.firstWhere(
         (s) => s.status == RecordingStatus.saved,
       );
@@ -229,12 +363,11 @@ void main() {
     final bloc = buildBloc();
     addTearDown(bloc.close);
 
-    bloc.add(const UiRecordingStarted());
-    await bloc.stream.firstWhere((s) => s.status == RecordingStatus.recording);
-    bloc.add(const UiRecordingStopped());
+    await startRecording(bloc);
+    bloc.add(const RecordingSessionStopped());
     await bloc.stream.firstWhere((s) => s.status == RecordingStatus.saved);
 
-    bloc.add(const UiReset());
+    bloc.add(const RecordingSessionReset());
     final state = await bloc.stream.firstWhere(
       (s) => s.status == RecordingStatus.idle,
     );
@@ -246,23 +379,21 @@ void main() {
   group('session duration limit', () {
     test('auto-stops when elapsed reaches maxSessionDuration', () async {
       var clock = DateTime.utc(2026);
-      final bloc = UiBloc(
+      final bloc = RecordingSessionBloc(
         controller: controller,
         repository: repository,
         now: () => clock,
         tickInterval: const Duration(hours: 1),
+        preparationDuration: const Duration(seconds: 1),
         maxSessionDuration: const Duration(minutes: 5),
       );
       addTearDown(bloc.close);
 
-      bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere(
-        (s) => s.status == RecordingStatus.recording,
-      );
+      await startRecording(bloc);
 
       // Advance clock past the limit and fire a tick.
       clock = DateTime.utc(2026, 1, 1, 0, 5, 1);
-      bloc.add(const UiTicked());
+      bloc.add(const RecordingSessionTicked());
 
       final state = await bloc.stream.firstWhere(
         (s) => s.status == RecordingStatus.saved,
@@ -277,11 +408,8 @@ void main() {
       final bloc = buildBloc();
       addTearDown(bloc.close);
 
-      bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere(
-        (s) => s.status == RecordingStatus.recording,
-      );
-      bloc.add(const UiRecordingStopped());
+      await startRecording(bloc);
+      bloc.add(const RecordingSessionStopped());
 
       final state = await bloc.stream.firstWhere(
         (s) => s.status == RecordingStatus.saved,
@@ -292,23 +420,21 @@ void main() {
 
     test('does not auto-stop before the limit is reached', () async {
       var clock = DateTime.utc(2026);
-      final bloc = UiBloc(
+      final bloc = RecordingSessionBloc(
         controller: controller,
         repository: repository,
         now: () => clock,
         tickInterval: const Duration(hours: 1),
+        preparationDuration: const Duration(seconds: 1),
         maxSessionDuration: const Duration(minutes: 5),
       );
       addTearDown(bloc.close);
 
-      bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere(
-        (s) => s.status == RecordingStatus.recording,
-      );
+      await startRecording(bloc);
 
       // Advance clock to just under the limit.
       clock = DateTime.utc(2026, 1, 1, 0, 4, 59);
-      bloc.add(const UiTicked());
+      bloc.add(const RecordingSessionTicked());
       await bloc.stream.firstWhere(
         (s) => s.elapsed == const Duration(minutes: 4, seconds: 59),
       );
@@ -319,25 +445,23 @@ void main() {
 
     test('ignores a second limit event if already saving', () async {
       var clock = DateTime.utc(2026);
-      final bloc = UiBloc(
+      final bloc = RecordingSessionBloc(
         controller: controller,
         repository: repository,
         now: () => clock,
         tickInterval: const Duration(hours: 1),
+        preparationDuration: const Duration(seconds: 1),
         maxSessionDuration: const Duration(minutes: 5),
       );
       addTearDown(bloc.close);
 
-      bloc.add(const UiRecordingStarted());
-      await bloc.stream.firstWhere(
-        (s) => s.status == RecordingStatus.recording,
-      );
+      await startRecording(bloc);
 
       clock = DateTime.utc(2026, 1, 1, 0, 5, 1);
       // Fire two ticks past the limit in quick succession.
       bloc
-        ..add(const UiTicked())
-        ..add(const UiTicked());
+        ..add(const RecordingSessionTicked())
+        ..add(const RecordingSessionTicked());
 
       final state = await bloc.stream.firstWhere(
         (s) => s.status == RecordingStatus.saved,

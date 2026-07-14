@@ -54,6 +54,7 @@ flutter:
     - assets/cnn_final.tflite
     - assets/cnn_final.preproc.json
     - assets/icons/google_logo.svg
+    - assets/illustrations/phone_pocket_placement.png
     # Test-only: small (~310 KB) truncated parity fixtures, bundled so the
     # on-device inference parity test (integration_test/) can read the expected
     # Python TFLite outputs via rootBundle. 

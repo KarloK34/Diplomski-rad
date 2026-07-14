@@ -20,6 +20,12 @@ abstract interface class RecordingController {
   /// Starts (or restarts) the recording service.
   Future<void> start();
 
+  /// Signals that the session has committed to recording (the pre-recording
+  /// countdown elapsed and the sensor-readiness probe passed), as opposed to
+  /// still being probed for readiness. Lets the service distinguish the two
+  /// so it doesn't surface probe-phase predictions in its notification.
+  void commitRecording();
+
   /// Stops the recording service.
   Future<void> stop();
 }

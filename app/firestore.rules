@@ -2,6 +2,12 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Each user can only read/write their own account document (e.g.
+    // onboardingCompleted).
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Each user can only read/write their own synced session summaries.
     match /users/{uid}/sessions/{sessionId} {
       allow read, write: if request.auth != null && request.auth.uid == uid;

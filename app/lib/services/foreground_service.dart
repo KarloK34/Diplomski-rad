@@ -38,6 +38,12 @@ class ForegroundMessage {
 
   /// [eventKey] value for a raw IMU sample payload.
   static const String sampleEvent = 'sample';
+
+  /// [eventKey] value sent main -> task (via
+  /// [FlutterForegroundTask.sendDataToTask]) once the session commits to
+  /// recording, so the notification stops reflecting the sensor-readiness
+  /// probe that already ran during the countdown.
+  static const String recordingCommittedEvent = 'recording_committed';
 }
 
 /// Runs the live recording pipeline inside the foreground-service isolate.
@@ -58,23 +64,25 @@ class _HarTaskHandler extends TaskHandler {
   // (mirrors PredictionBloc's sequential transformer).
   Future<void> _inferenceChain = Future<void>.value();
 
-  DateTime _startedAt = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _limitTimer;
   bool _limitStopRequested = false;
   int _predictionCount = 0;
   String _lastLabel = '—';
 
+  // Null while only the sensor-readiness probe is running (pre-recording
+  // countdown); set once the main isolate confirms the session committed to
+  // recording. Gates prediction/elapsed data out of the notification until
+  // then — see [ForegroundMessage.recordingCommittedEvent].
+  DateTime? _recordingStartedAt;
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    _startedAt = timestamp;
     _limitStopRequested = false;
     _predictionCount = 0;
     _lastLabel = '—';
+    _recordingStartedAt = null;
     _limitTimer?.cancel();
-    _limitTimer = Timer(
-      defaultMaxSessionDuration,
-      () => unawaited(_stopBecauseLimit()),
-    );
+    _limitTimer = null;
     // Loading the model here verifies tflite_flutter initialises in the service
     // isolate; sensors_plus likewise streams from this isolate.
     _inference = await HarInference.load();
@@ -129,12 +137,49 @@ class _HarTaskHandler extends TaskHandler {
   }
 
   @override
+  void onReceiveData(Object data) {
+    if (data is! String) return;
+    final decoded = jsonDecode(data) as Map<String, dynamic>;
+    if (decoded[ForegroundMessage.eventKey] !=
+        ForegroundMessage.recordingCommittedEvent) {
+      return;
+    }
+    // Predictions made during the probe phase belong to readiness-checking,
+    // not the session — start the notification's counters fresh.
+    _recordingStartedAt = DateTime.now();
+    _predictionCount = 0;
+    _lastLabel = '—';
+    // The limit clock must start here, not in onStart: onStart fires at
+    // Start-press, ~preparationDuration before the bloc's own clock starts
+    // at commit. Arming both timers from the same commit event keeps the
+    // service and the bloc from disagreeing about when the session ends.
+    _limitTimer?.cancel();
+    _limitTimer = Timer(
+      defaultMaxSessionDuration,
+      () => unawaited(_stopBecauseLimit()),
+    );
+  }
+
+  @override
   void onRepeatEvent(DateTime timestamp) {
     if (_stopIfLimitReached(timestamp)) return;
 
     // Periodic refresh of the notification only — the data pipeline is driven
     // by the sensor stream, not by this callback.
-    final elapsed = timestamp.difference(_startedAt);
+    final recordingStartedAt = _recordingStartedAt;
+    if (recordingStartedAt == null) {
+      // Still probing sensor readiness during the pre-recording countdown;
+      // nothing about the eventual session exists yet worth surfacing.
+      unawaited(
+        FlutterForegroundTask.updateService(
+          notificationTitle: 'Priprema snimanja',
+          notificationText: 'Provjera senzora…',
+        ),
+      );
+      return;
+    }
+
+    final elapsed = timestamp.difference(recordingStartedAt);
     unawaited(
       FlutterForegroundTask.updateService(
         notificationTitle: 'Snimanje aktivnosti u tijeku',
@@ -164,8 +209,12 @@ class _HarTaskHandler extends TaskHandler {
   }
 
   bool _isAtLimit(DateTime timestamp) {
+    // No commit yet means still probing sensor readiness during the bounded
+    // pre-recording countdown — never at limit there.
+    final recordingStartedAt = _recordingStartedAt;
+    if (recordingStartedAt == null) return false;
     return hasReachedSessionLimit(
-      startedAt: _startedAt,
+      startedAt: recordingStartedAt,
       now: timestamp,
     );
   }

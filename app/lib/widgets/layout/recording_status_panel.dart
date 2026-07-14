@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:gait_sense/blocs/ui/ui_state.dart';
+import 'package:gait_sense/blocs/recording_session/recording_session_state.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/utils/duration_format.dart';
@@ -85,6 +85,13 @@ class RecordingStatusPanel extends StatelessWidget {
       case RecordingStatus.idle:
       case RecordingStatus.saved:
         return 'Zaustavljeno';
+      // Not reached in practice — LiveHarContent renders a dedicated panel
+      // for these two statuses instead of RecordingStatusPanel. Handled here
+      // only so the switch stays exhaustive over RecordingStatus.
+      case RecordingStatus.preparing:
+        return 'Priprema…';
+      case RecordingStatus.unavailable:
+        return 'Senzori nedostupni';
     }
   }
 }

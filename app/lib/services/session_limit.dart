@@ -5,6 +5,15 @@
 /// paths enforce the same deadline.
 const Duration defaultMaxSessionDuration = Duration(minutes: 30);
 
+/// How long the pre-recording countdown runs after Start is pressed.
+///
+/// A local UX/engineering choice, not an academic claim: long enough to
+/// pocket the phone, short enough not to feel like a delay. Also doubles as
+/// the timeout for the sensor-readiness probe (see
+/// `RecordingSessionBloc._onStarted`) — trivially retunable if either need
+/// changes.
+const Duration defaultPreparationDuration = Duration(seconds: 7);
+
 /// Returns true at the first instant that belongs outside the allowed session.
 bool hasReachedSessionLimit({
   required DateTime startedAt,

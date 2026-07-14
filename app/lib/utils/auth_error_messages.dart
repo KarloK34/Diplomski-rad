@@ -23,8 +23,7 @@ String signupErrorMessage(FirebaseAuthException error) {
     'email-already-in-use' => 'Račun s ovom e-mail adresom već postoji.',
     'invalid-email' => 'Unesena e-mail adresa nije valjana.',
     'weak-password' => 'Lozinka je preslaba. Odaberite jaču lozinku.',
-    'operation-not-allowed' =>
-      'Registracija e-mailom trenutno nije omogućena.',
+    'operation-not-allowed' => 'Registracija e-mailom trenutno nije omogućena.',
     _ => 'Registracija nije uspjela. Pokušajte ponovno.',
   };
 }

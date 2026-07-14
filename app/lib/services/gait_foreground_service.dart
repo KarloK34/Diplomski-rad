@@ -101,9 +101,21 @@ class GaitForegroundService implements RecordingController {
     }
     return FlutterForegroundTask.startService(
       serviceId: 1001,
-      notificationTitle: 'Snimanje aktivnosti u tijeku',
-      notificationText: 'Pokretanje…',
+      notificationTitle: 'Priprema snimanja',
+      notificationText: 'Provjera senzora…',
       callback: gaitSenseForegroundCallback,
+    );
+  }
+
+  /// Tells the service isolate the session committed to recording, so its
+  /// notification stops showing the sensor-readiness probe as if it were a
+  /// live session.
+  @override
+  void commitRecording() {
+    FlutterForegroundTask.sendDataToTask(
+      jsonEncode({
+        ForegroundMessage.eventKey: ForegroundMessage.recordingCommittedEvent,
+      }),
     );
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gait_sense/blocs/ui/ui_bloc.dart';
-import 'package:gait_sense/blocs/ui/ui_state.dart';
+import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
+import 'package:gait_sense/blocs/recording_session/recording_session_state.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,12 +15,15 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<UiBloc, UiState>(
+    return BlocBuilder<RecordingSessionBloc, RecordingSessionState>(
       buildWhen: (previous, current) => previous.status != current.status,
       builder: (context, state) {
         final isRecordingTab =
             navigationShell.currentIndex == AppTab.record.index;
+        // preparing counts as active too: switching tabs mid-countdown would
+        // leave the controller armed with no visible way back to cancel it.
         final isSessionActive =
+            state.status == RecordingStatus.preparing ||
             state.status == RecordingStatus.recording ||
             state.status == RecordingStatus.saving;
         final showNavigation = !(isRecordingTab && isSessionActive);

@@ -7,20 +7,29 @@ enum RecordingStatus {
   /// No session active; ready to start.
   idle,
 
+  /// Start was pressed: the countdown is running and the sensor-readiness
+  /// probe is waiting for a first sample. No session bookkeeping yet.
+  preparing,
+
   /// A session is running and consuming predictions.
   recording,
 
   /// The session stopped and is being written to disk.
   saving,
 
-  /// The session was saved; [UiState.finishedSession] holds the result.
+  /// The session was saved; [RecordingSessionState.finishedSession] holds
+  /// the result.
   saved,
+
+  /// The countdown elapsed without a sensor sample arriving (missing
+  /// hardware, or a denied motion-sensor permission) — no session started.
+  unavailable,
 }
 
-/// State of the UI-isolate recording bloc.
-class UiState extends Equatable {
+/// State of the recording-session bloc.
+class RecordingSessionState extends Equatable {
   /// Creates a state with all fields specified.
-  const UiState({
+  const RecordingSessionState({
     required this.status,
     required this.elapsed,
     required this.predictionCount,
@@ -29,10 +38,11 @@ class UiState extends Equatable {
     this.latest,
     this.finishedSession,
     this.stoppedByLimit = false,
+    this.countdownSecondsRemaining = 0,
   });
 
   /// The initial, idle state.
-  const UiState.initial()
+  const RecordingSessionState.initial()
     : status = RecordingStatus.idle,
       elapsed = Duration.zero,
       predictionCount = 0,
@@ -40,7 +50,8 @@ class UiState extends Equatable {
       latencyP95Ms = 0,
       latest = null,
       finishedSession = null,
-      stoppedByLimit = false;
+      stoppedByLimit = false,
+      countdownSecondsRemaining = 0;
 
   /// Where the session is in its lifecycle.
   final RecordingStatus status;
@@ -68,13 +79,17 @@ class UiState extends Equatable {
   /// maximum allowed duration. False for user-initiated stops.
   final bool stoppedByLimit;
 
+  /// Seconds left in the pre-recording countdown while [status] is
+  /// [RecordingStatus.preparing]; meaningless otherwise.
+  final int countdownSecondsRemaining;
+
   /// Whether a session is currently recording.
   bool get isRecording => status == RecordingStatus.recording;
 
   /// Returns a copy with the given fields replaced. Nullable fields cannot be
   /// cleared through this method; the idle state is built with the
-  /// [UiState.initial] constructor instead.
-  UiState copyWith({
+  /// [RecordingSessionState.initial] constructor instead.
+  RecordingSessionState copyWith({
     RecordingStatus? status,
     Duration? elapsed,
     int? predictionCount,
@@ -83,8 +98,9 @@ class UiState extends Equatable {
     int? latencyP95Ms,
     SessionLog? finishedSession,
     bool? stoppedByLimit,
+    int? countdownSecondsRemaining,
   }) {
-    return UiState(
+    return RecordingSessionState(
       status: status ?? this.status,
       elapsed: elapsed ?? this.elapsed,
       predictionCount: predictionCount ?? this.predictionCount,
@@ -93,6 +109,8 @@ class UiState extends Equatable {
       latest: latest ?? this.latest,
       finishedSession: finishedSession ?? this.finishedSession,
       stoppedByLimit: stoppedByLimit ?? this.stoppedByLimit,
+      countdownSecondsRemaining:
+          countdownSecondsRemaining ?? this.countdownSecondsRemaining,
     );
   }
 
@@ -106,5 +124,6 @@ class UiState extends Equatable {
     latencyP95Ms,
     finishedSession,
     stoppedByLimit,
+    countdownSecondsRemaining,
   ];
 }

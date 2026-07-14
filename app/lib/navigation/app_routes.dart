@@ -18,6 +18,13 @@ abstract final class AppRoutes {
   /// Debug sensors path, nested under the recording tab.
   static const recordDebugSensors = '/record/$recordDebugSensorsSegment';
 
+  /// Relative path segment for [recordInstructions], nested under [record].
+  static const recordInstructionsSegment = 'instructions';
+
+  /// On-demand placement-instructions reminder, nested under the recording
+  /// tab (reachable via the info icon in its app bar).
+  static const recordInstructions = '/record/$recordInstructionsSegment';
+
   /// Relative path segment shared by [recordSettings] and [profileSettings].
   static const settingsSegment = 'settings';
 
@@ -43,6 +50,10 @@ abstract final class AppRoutes {
 
   /// Signup path.
   static const signup = '/signup';
+
+  /// Shown once per account, right after first sign-in, until the account
+  /// completes it.
+  static const onboarding = '/onboarding';
 }
 
 /// Top-level tab identifiers.
@@ -67,6 +78,9 @@ enum AppSubRoute {
 
   /// Debug sensors screen, nested under [AppTab.record].
   recordDebugSensors,
+
+  /// On-demand placement-instructions reminder, nested under [AppTab.record].
+  recordInstructions,
 
   /// Settings screen reached from [AppTab.record].
   recordSettings,

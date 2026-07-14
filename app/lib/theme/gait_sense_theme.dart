@@ -37,7 +37,7 @@ abstract final class GaitSenseTheme {
       scaffoldBackgroundColor: colorScheme.surface,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
-        centerTitle: false,
+        centerTitle: true,
         elevation: 0,
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,
