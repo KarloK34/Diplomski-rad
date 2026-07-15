@@ -30,3 +30,16 @@ String? requiredNameError(String? value, String fieldName) {
   if (text.isEmpty) return 'Unesite $fieldName.';
   return null;
 }
+
+/// Returns a Croatian error message if [value] isn't a whole number of
+/// centimetres in the plausible adult range, or `null` if it passes. An
+/// empty value passes when [required] is false — used by the skippable
+/// onboarding height step.
+String? heightRangeError(String? value, {bool required = true}) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty && !required) return null;
+  final v = int.tryParse(text);
+  if (v == null) return 'Unesite broj.';
+  if (v < 100 || v > 230) return 'Unesite visinu između 100 i 230 cm.';
+  return null;
+}

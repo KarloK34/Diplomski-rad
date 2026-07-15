@@ -9,20 +9,21 @@ import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
-import 'package:gait_sense/repositories/user_preferences_repository.dart';
+import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Wraps [child] in a [RepositoryProvider] that serves a real
-/// [UserPreferencesRepository] backed by an in-memory SharedPreferences store.
+/// [UserProfileRepository]. Firebase is never initialized in this test file,
+/// so its Firestore/Auth calls fail closed to "no height" — same
+/// observable state as before this repository moved off SharedPreferences.
 ///
 /// Applies [GaitSenseTheme] rather than a bare [MaterialApp] theme, since the
 /// widget tree reads spacing/color/text-style tokens off it.
-Widget _withPrefs(Widget child) {
-  return RepositoryProvider<UserPreferencesRepository>(
-    create: (_) => UserPreferencesRepository(),
+Widget _withUserProfile(Widget child) {
+  return RepositoryProvider<UserProfileRepository>(
+    create: (_) => UserProfileRepository(),
     child: MaterialApp(theme: GaitSenseTheme.light(), home: child),
   );
 }
@@ -79,9 +80,6 @@ class _FakeAuthRepository implements AuthRepository {
 }
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
   testWidgets('app renders bottom navigation and opens recording tab', (
     tester,
   ) async {
@@ -132,7 +130,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _withPrefs(SessionSummaryScreen(session: session)),
+      _withUserProfile(SessionSummaryScreen(session: session)),
     );
 
     // First frame: Future not yet resolved → loading scaffold is visible.
@@ -185,7 +183,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _withPrefs(SessionSummaryScreen(session: session)),
+      _withUserProfile(SessionSummaryScreen(session: session)),
     );
 
     await pumpUntilFound(tester, find.text('Kadenca (eksperimentalno)'));
@@ -247,7 +245,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _withPrefs(SessionSummaryScreen(session: session)),
+        _withUserProfile(SessionSummaryScreen(session: session)),
       );
 
       await pumpUntilFound(

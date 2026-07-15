@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/models/session_log.dart';
-import 'package:gait_sense/repositories/user_preferences_repository.dart';
+import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_computation.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_content.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
@@ -28,7 +28,7 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
   late final Future<SessionSummaryData> _summaryFuture;
 
   Future<SessionSummaryInput> _buildInput() async {
-    final prefs = context.read<UserPreferencesRepository>();
+    final prefs = context.read<UserProfileRepository>();
     final heightCm = await prefs.getHeightCm();
     return SessionSummaryInput(
       session: widget.session,

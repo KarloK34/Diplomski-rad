@@ -4,13 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/auth/auth_cubit.dart';
 import 'package:gait_sense/blocs/onboarding/onboarding_cubit.dart';
+import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/screens/live_har/recording_placement_copy.dart';
+import 'package:gait_sense/screens/onboarding/onboarding_height_page.dart';
+import 'package:gait_sense/screens/onboarding/onboarding_welcome_page.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 
-/// Shown once per account, right after first sign-in — a 3-step introduction
-/// to what the app does, how to place the phone for a good session, and what
-/// permissions it will ask for.
+/// Shown once per account, right after first sign-in — a 4-step introduction
+/// to what the app does, how to place the phone for a good session, what
+/// permissions it will ask for, and an optional body height for the
+/// walking-speed estimate.
 ///
 /// Paging is plain presentation state with no business logic, so this is a
 /// `StatefulWidget` holding a `PageController` directly rather than a Cubit —
@@ -24,20 +28,24 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const int _pageCount = 3;
+  static const int _pageCount = 4;
 
   final PageController _pageController = PageController();
+  final GlobalKey<FormState> _heightFormKey = GlobalKey<FormState>();
+  final TextEditingController _heightController = TextEditingController();
   int _currentPage = 0;
 
   @override
   void dispose() {
     _pageController.dispose();
+    _heightController.dispose();
     super.dispose();
   }
 
   void _goToNextPage() {
     if (_currentPage == _pageCount - 1) {
-      _finish();
+      if (!(_heightFormKey.currentState?.validate() ?? true)) return;
+      unawaited(_finish());
       return;
     }
     unawaited(
@@ -48,9 +56,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  void _finish() {
+  Future<void> _finish() async {
     final uid = context.read<AuthCubit>().state.user?.uid;
     if (uid == null) return;
+
+    final heightCm = int.tryParse(_heightController.text.trim());
+    if (heightCm != null) {
+      try {
+        await context.read<UserProfileRepository>().setHeightCm(
+          heightCm.toDouble(),
+        );
+      } on Object {
+        // Non-fatal: the user can still set height later from Settings.
+      }
+    }
+
+    if (!mounted) return;
     unawaited(context.read<OnboardingCubit>().markCompleted(uid));
   }
 
@@ -67,14 +88,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: PageView(
                 controller: _pageController,
                 onPageChanged: (index) => setState(() => _currentPage = index),
-                children: const [
-                  _WelcomePage(),
-                  OnboardingStepView(
+                children: [
+                  const OnboardingWelcomePage(),
+                  const OnboardingStepView(
                     imageAsset: RecordingPlacementCopy.imageAsset,
                     title: RecordingPlacementCopy.title,
                     description: RecordingPlacementCopy.description,
                   ),
-                  OnboardingStepView(
+                  OnboardingHeightPage(
+                    formKey: _heightFormKey,
+                    controller: _heightController,
+                  ),
+                  const OnboardingStepView(
                     icon: Icons.notifications_active_outlined,
                     title: 'Spremni za početak',
                     description:
@@ -121,56 +146,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
     );
   }
-}
-
-/// First onboarding page: brand mark, personal greeting, and a short
-/// value-prop paragraph.
-class _WelcomePage extends StatelessWidget {
-  const _WelcomePage();
-
-  @override
-  Widget build(BuildContext context) {
-    final spacing = context.spacing;
-    final firstName = _firstNameFrom(
-      context.watch<AuthCubit>().state.user?.displayName,
-    );
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const AppLogo(
-            tagline: 'Analiza hoda pomoću senzora vašeg telefona',
-          ),
-          SizedBox(height: spacing.lg),
-          if (firstName != null) ...[
-            Text(
-              'Bok, $firstName!',
-              style: context.textStyles.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: spacing.xs),
-          ],
-          Text(
-            'Gait Sense prati vaš hod izravno na uređaju. U slijedećih '
-            'nekoliko koraka objašnjeno je kako snimiti sesiju koja daje '
-            'najkvalitetnije rezultate.',
-            textAlign: TextAlign.center,
-            style: context.textStyles.bodyLarge?.copyWith(
-              color: context.colors.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Takes the first token of a Firebase [displayName] ("Ana Anić" → "Ana"),
-/// or null if there is no name to greet with.
-String? _firstNameFrom(String? displayName) {
-  final trimmed = displayName?.trim();
-  if (trimmed == null || trimmed.isEmpty) return null;
-  return trimmed.split(RegExp(r'\s+')).first;
 }

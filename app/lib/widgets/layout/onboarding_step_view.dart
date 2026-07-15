@@ -12,6 +12,7 @@ class OnboardingStepView extends StatelessWidget {
     required this.description,
     this.icon,
     this.imageAsset,
+    this.child,
     super.key,
   }) : assert(
          (icon == null) != (imageAsset == null),
@@ -30,37 +31,53 @@ class OnboardingStepView extends StatelessWidget {
   /// Supporting body text.
   final String description;
 
+  /// Optional content rendered below the description, e.g. a form field.
+  final Widget? child;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final spacing = context.spacing;
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (imageAsset != null)
-            _Illustration(assetPath: imageAsset!)
-          else
-            _IconBadge(icon: icon!),
-          SizedBox(height: spacing.lg),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: context.textStyles.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w600,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Scrollable so a focused field inside [child] has a
+        // vertical Scrollable to auto-scroll into view above
+        // the keyboard — PageView's own Scrollable is horizontal and can't
+        // do that. ConstrainedBox keeps the content centered like before
+        // whenever it still fits the available height.
+        return SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (imageAsset != null)
+                  _Illustration(assetPath: imageAsset!)
+                else
+                  _IconBadge(icon: icon!),
+                SizedBox(height: spacing.lg),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: context.textStyles.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: spacing.sm),
+                Text(
+                  description,
+                  textAlign: TextAlign.center,
+                  style: context.textStyles.bodyLarge?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                if (child != null) ...[SizedBox(height: spacing.lg), child!],
+              ],
             ),
           ),
-          SizedBox(height: spacing.sm),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: context.textStyles.bodyLarge?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

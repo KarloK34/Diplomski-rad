@@ -12,7 +12,7 @@ import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/onboarding_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
 import 'package:gait_sense/repositories/session_summary_repository.dart';
-import 'package:gait_sense/repositories/user_preferences_repository.dart';
+import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/services/gait_foreground_service.dart';
 import 'package:go_router/go_router.dart';
 
@@ -31,9 +31,8 @@ class AppDependencies {
   /// Persists finished recording sessions on-device.
   final SessionLogRepository sessionLogRepository = SessionLogRepository();
 
-  /// Persists user-configurable app settings.
-  final UserPreferencesRepository userPreferencesRepository =
-      UserPreferencesRepository();
+  /// Persists per-account profile fields in Firestore.
+  final UserProfileRepository userProfileRepository = UserProfileRepository();
 
   /// Syncs finished session summaries to the signed-in account.
   final SessionSummaryRepository sessionSummaryRepository =

@@ -17,10 +17,9 @@ import 'package:gait_sense/navigation/go_router_refresh_stream.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/onboarding_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
-import 'package:gait_sense/repositories/user_preferences_repository.dart';
+import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Only satisfies [RecordingSessionBloc]'s constructor — this test drives
 /// the bloc directly via `emit`, skipping the sensor/timer pipeline.
@@ -92,10 +91,6 @@ class _FakeAuthRepository implements AuthRepository {
 }
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
-
   testWidgets(
     'back button after a recorded session returns to Live HAR, '
     'not a blank page',
@@ -143,8 +138,8 @@ void main() {
       await tester.pumpWidget(
         MultiRepositoryProvider(
           providers: [
-            RepositoryProvider<UserPreferencesRepository>.value(
-              value: UserPreferencesRepository(),
+            RepositoryProvider<UserProfileRepository>.value(
+              value: UserProfileRepository(),
             ),
             RepositoryProvider<SessionLogRepository>.value(value: repository),
           ],

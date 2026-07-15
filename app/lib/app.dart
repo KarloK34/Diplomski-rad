@@ -6,7 +6,7 @@ import 'package:gait_sense/blocs/onboarding/onboarding_cubit.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
-import 'package:gait_sense/repositories/user_preferences_repository.dart';
+import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
 
 /// Root MaterialApp — see [AppDependencies] for the singletons provided
@@ -47,8 +47,8 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
         RepositoryProvider<AuthRepository>.value(
           value: _dependencies.authRepository,
         ),
-        RepositoryProvider<UserPreferencesRepository>.value(
-          value: _dependencies.userPreferencesRepository,
+        RepositoryProvider<UserProfileRepository>.value(
+          value: _dependencies.userProfileRepository,
         ),
         RepositoryProvider<SessionLogRepository>.value(
           value: _dependencies.sessionLogRepository,

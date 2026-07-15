@@ -22,7 +22,6 @@ dependencies:
   path_provider: ^2.1.5
   sensors_plus: ^7.0.0
   share_plus: ^13.1.0
-  shared_preferences: ^2.3.0
   tflite_flutter: ^0.12.1
 
 # Dependency notes:
@@ -33,9 +32,10 @@ dependencies:
 #  - flutter_foreground_task keeps the 50 Hz sampler alive with the screen off.
 #  - path_provider resolves the documents directory for session-log JSON export.
 #  - share_plus invokes the OS share sheet to export a session JSON.
-#  - firebase_core/firebase_auth/cloud_firestore: account auth and cloud sync
-#    of session summaries (raw IMU samples stay local-only, see
-#    SessionSummaryRepository).
+#  - firebase_core/firebase_auth/cloud_firestore: account auth, cloud sync of
+#    session summaries (raw IMU samples stay local-only, see
+#    SessionSummaryRepository), and per-account profile fields like height
+#    (see UserProfileRepository).
 #  - google_sign_in 7.x: Google sign-in option on the login/signup screens;
 #    requires google_sign_in_android >=7.2.12 for AGP 9 support.
 #  - flutter_svg renders the Google "G" logo asset on GoogleSignInButton.

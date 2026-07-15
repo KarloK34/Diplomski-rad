@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/extensions/snackbar_context.dart';
-import 'package:gait_sense/repositories/user_preferences_repository.dart';
+import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/theme/theme_context.dart';
+import 'package:gait_sense/widgets/widgets.dart';
 
 /// Screen for editing persistent user preferences, currently only body height.
 ///
@@ -33,7 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadHeight() async {
-    final prefs = context.read<UserPreferencesRepository>();
+    final prefs = context.read<UserProfileRepository>();
     final height = await prefs.getHeightCm();
     if (!mounted) return;
     if (height != null) {
@@ -48,11 +48,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (heightCm == null) return;
 
     setState(() => _saving = true);
-    final prefs = context.read<UserPreferencesRepository>();
-    await prefs.setHeightCm(heightCm);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    context.showSnackBar('Postavke su spremljene.');
+    final prefs = context.read<UserProfileRepository>();
+    try {
+      await prefs.setHeightCm(heightCm);
+      if (!mounted) return;
+      context.showSnackBar('Postavke su spremljene.');
+    } on Object {
+      if (!mounted) return;
+      context.showSnackBar('Spremanje nije uspjelo. Pokušajte ponovo.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -87,27 +93,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _heightController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'Visina (cm)',
-                        hintText: 'npr. 175',
-                        border: OutlineInputBorder(),
-                        suffixText: 'cm',
-                      ),
-                      validator: (value) {
-                        final v = int.tryParse(value?.trim() ?? '');
-                        if (v == null) return 'Unesite broj.';
-                        if (v < 100 || v > 230) {
-                          return 'Unesite visinu između 100 i 230 cm.';
-                        }
-                        return null;
-                      },
-                    ),
+                    HeightField(controller: _heightController),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
