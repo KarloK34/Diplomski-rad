@@ -80,24 +80,13 @@ class SessionDetailContent extends StatelessWidget {
   Future<void> _confirmDelete(BuildContext context) async {
     final repository = context.read<SessionRepository>();
     final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Obriši sesiju?'),
-        content: const Text('Ova radnja trajno uklanja spremljenu sesiju.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Odustani'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Obriši'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Obriši sesiju?',
+      message: 'Ova radnja trajno uklanja spremljenu sesiju.',
+      confirmLabel: 'Obriši',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     unawaited(
       repository

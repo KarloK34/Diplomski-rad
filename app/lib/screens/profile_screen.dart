@@ -9,9 +9,16 @@ import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 /// Profile tab with account info and settings entry points.
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   /// Creates the profile screen.
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _signingOut = false;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +60,8 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.logout,
               title: 'Odjava',
               showChevron: false,
-              onTap: () => _signOut(context),
+              loading: _signingOut,
+              onTap: () => _confirmSignOut(context),
             ),
           ],
         ),
@@ -61,13 +69,26 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _signOut(BuildContext context) async {
+  /// Confirms the destructive action before signing out, since it ends the
+  /// session and requires signing back in to resume.
+  Future<void> _confirmSignOut(BuildContext context) async {
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Odjava?',
+      message: 'Morat ćete se ponovo prijaviti za nastavak korištenja.',
+      confirmLabel: 'Odjavi se',
+    );
+    if (!confirmed || !context.mounted) return;
+
+    setState(() => _signingOut = true);
     try {
       await context.read<AuthRepository>().signOut();
     } on Object {
       if (context.mounted) {
         context.showSnackBar('Odjava nije uspjela. Pokušajte ponovo.');
       }
+    } finally {
+      if (mounted) setState(() => _signingOut = false);
     }
   }
 }

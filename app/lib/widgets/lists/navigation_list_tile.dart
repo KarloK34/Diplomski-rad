@@ -10,6 +10,7 @@ class NavigationListTile extends StatelessWidget {
     this.subtitle,
     this.onTap,
     this.showChevron = true,
+    this.loading = false,
     super.key,
   });
 
@@ -29,14 +30,23 @@ class NavigationListTile extends StatelessWidget {
   /// rows that aren't navigable.
   final bool showChevron;
 
+  /// Shows a spinner in place of [icon] and ignores taps — for rows that
+  /// trigger an async action rather than navigating.
+  final bool loading;
+
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon),
+      leading: loading
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon),
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle!),
       trailing: showChevron ? const Icon(Icons.chevron_right) : null,
-      onTap: onTap,
+      onTap: loading ? null : onTap,
     );
   }
 }

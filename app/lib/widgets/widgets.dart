@@ -23,6 +23,7 @@ export 'charts/activity_distribution_chart.dart';
 export 'charts/activity_timeline_chart.dart';
 export 'charts/chart_legend.dart';
 export 'charts/metric_trend_chart.dart';
+export 'dialogs/confirmation_dialog.dart';
 export 'forms/email_field.dart';
 export 'forms/height_field.dart';
 export 'forms/name_field.dart';

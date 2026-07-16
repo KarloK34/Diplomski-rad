@@ -152,8 +152,15 @@ class _SessionSummaryContentState extends State<SessionSummaryContent> {
     required bool hasData,
   }) async {
     if (hasData && !_persisted) {
-      final discard = await _confirmDiscard(context);
-      if (discard != true || !context.mounted) return;
+      final discard = await showConfirmationDialog(
+        context,
+        title: 'Odbaciti sesiju?',
+        message:
+            'Ako se vratite bez spremanja, ova sesija će biti trajno '
+            'izbrisana.',
+        confirmLabel: 'Odbaci sesiju',
+      );
+      if (!discard || !context.mounted) return;
     }
 
     if (!_persisted) {
@@ -165,30 +172,6 @@ class _SessionSummaryContentState extends State<SessionSummaryContent> {
     }
 
     if (context.mounted) context.pop();
-  }
-
-  /// Asks the user to confirm losing the recording before backing out.
-  Future<bool?> _confirmDiscard(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Odbaciti sesiju?'),
-        content: const Text(
-          'Ako se vratite bez spremanja, ova sesija će biti trajno '
-          'izbrisana.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Odustani'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Odbaci sesiju'),
-          ),
-        ],
-      ),
-    );
   }
 
   /// Persists the session locally (durable) and to the cloud (offline-safe).
