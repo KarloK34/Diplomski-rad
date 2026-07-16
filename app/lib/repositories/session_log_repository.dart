@@ -7,6 +7,28 @@ import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:path_provider/path_provider.dart';
 
+/// Decodes one draft's raw JSON into a [SessionLog], or the parse error's
+/// [Object.toString] on failure — run via [compute] since a draft holds
+/// every raw IMU sample from its recording, so decoding several at once can
+/// take more than a few ms.
+Object _tryParseSessionLog(String raw) {
+  try {
+    return SessionLog.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  } on Object catch (error) {
+    return error.toString();
+  }
+}
+
+/// Batch entry point for [compute]: parses every draft's contents in one
+/// spawned isolate rather than paying isolate-spawn overhead per file.
+List<Object> _parsePendingDrafts(List<String> contents) => [
+  for (final raw in contents) _tryParseSessionLog(raw),
+];
+
+/// Entry point for [compute]: parses a single imported session's contents.
+SessionLog _parseImportedSessionLog(String contents) =>
+    SessionLog.fromJson(jsonDecode(contents) as Map<String, dynamic>);
+
 /// Owns the active session's prediction buffer and persists a finished session
 /// to a single JSON file under `<documents>/sessions/`.
 ///
@@ -157,19 +179,32 @@ class SessionLogRepository {
     }
     if (!pendingDir.existsSync()) return const [];
 
+    final files = [
+      for (final entity in pendingDir.listSync())
+        if (entity is File && entity.path.endsWith('.json')) entity,
+    ];
+    if (files.isEmpty) return const [];
+
+    final contents = await Future.wait(
+      files.map((file) => file.readAsString()),
+    );
+    // Batched into a single isolate spawn rather than one compute() call per
+    // file, since spawn overhead would otherwise dominate for a handful of
+    // small drafts.
+    final parsed = await compute(_parsePendingDrafts, contents);
+
     final drafts = <SessionLog>[];
-    for (final entity in pendingDir.listSync()) {
-      if (entity is! File || !entity.path.endsWith('.json')) continue;
-      try {
-        final json = jsonDecode(await entity.readAsString());
-        drafts.add(SessionLog.fromJson(json as Map<String, dynamic>));
-      } on Object catch (error) {
-        debugPrint(
-          'Discarding unrecoverable pending session '
-          '${entity.path}: $error',
-        );
-        await entity.delete();
+    for (var i = 0; i < files.length; i++) {
+      final result = parsed[i];
+      if (result is SessionLog) {
+        drafts.add(result);
+        continue;
       }
+      debugPrint(
+        'Discarding unrecoverable pending session '
+        '${files[i].path}: $result',
+      );
+      await files[i].delete();
     }
     return drafts;
   }
@@ -184,8 +219,12 @@ class SessionLogRepository {
   /// [TypeError] from a shape that doesn't match [SessionLog.fromJson] —
   /// the caller reports these to the user rather than treating them as
   /// recoverable.
-  SessionLog importFromJson(String contents) {
-    return SessionLog.fromJson(jsonDecode(contents) as Map<String, dynamic>);
+  ///
+  /// Runs off the main isolate via [compute]: an exported session holds
+  /// every raw IMU sample from its recording, so decoding it can take more
+  /// than a few ms.
+  Future<SessionLog> importFromJson(String contents) {
+    return compute(_parseImportedSessionLog, contents);
   }
 
   Future<Directory> _pendingDirectory() async {

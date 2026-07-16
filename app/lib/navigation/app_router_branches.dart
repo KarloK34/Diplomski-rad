@@ -4,7 +4,6 @@ import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/navigation/app_navigator_keys.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
-import 'package:gait_sense/screens/debug_sensors/debug_sensors_screen.dart';
 import 'package:gait_sense/screens/home_screen.dart';
 import 'package:gait_sense/screens/live_har/live_har_screen.dart';
 import 'package:gait_sense/screens/live_har/recording_instructions_screen.dart';
@@ -74,12 +73,6 @@ StatefulShellBranch _recordBranch() => StatefulShellBranch(
               state.extra is SessionLog ? null : AppRoutes.record,
           builder: (context, state) =>
               SessionSummaryScreen(session: state.extra! as SessionLog),
-        ),
-        GoRoute(
-          path: AppRoutes.recordDebugSensorsSegment,
-          name: AppSubRoute.recordDebugSensors.name,
-          parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => const DebugSensorsScreen(),
         ),
         GoRoute(
           path: AppRoutes.recordInstructionsSegment,

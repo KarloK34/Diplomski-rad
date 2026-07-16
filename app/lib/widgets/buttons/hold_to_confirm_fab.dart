@@ -64,61 +64,61 @@ class _HoldToConfirmFabState extends State<HoldToConfirmFab>
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final foreground = colors.onPrimaryContainer;
     return GestureDetector(
       onLongPressStart: (_) => unawaited(_controller.forward()),
       onLongPressEnd: (_) => _releaseEarly(),
       onLongPressCancel: _releaseEarly,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          final foreground = colors.onPrimaryContainer;
-          return Material(
-            color: colors.primaryContainer,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadii.xl),
-            ),
-            elevation: 6,
-            child: SizedBox(
-              height: 56,
-              child: Padding(
-                padding: const EdgeInsetsDirectional.only(
-                  start: 16,
-                  end: 20,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox.square(
-                      dimension: 36,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          if (_controller.value > 0)
-                            CircularProgressIndicator(
-                              value: _controller.value,
-                              strokeWidth: 3.5,
-                              color: foreground,
-                              backgroundColor: foreground.withValues(
-                                alpha: 0.25,
-                              ),
-                            ),
-                          Icon(widget.icon, size: 24, color: foreground),
-                        ],
+      child: Material(
+        color: colors.primaryContainer,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.xl),
+        ),
+        elevation: 6,
+        child: SizedBox(
+          height: 56,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(start: 16, end: 20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 36,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    // Only the progress ring depends on the animation, so it
+                    // alone is rebuilt per tick via AnimatedBuilder's
+                    // `builder`; the icon is passed through as `child`
+                    // instead of being reconstructed on every tick too.
+                    children: [
+                      AnimatedBuilder(
+                        animation: _controller,
+                        builder: (context, _) => _controller.value > 0
+                            ? CircularProgressIndicator(
+                                value: _controller.value,
+                                strokeWidth: 3.5,
+                                color: foreground,
+                                backgroundColor: foreground.withValues(
+                                  alpha: 0.25,
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.label,
-                      style: context.textStyles.labelLarge?.copyWith(
-                        color: foreground,
-                      ),
-                    ),
-                  ],
+                      Icon(widget.icon, size: 24, color: foreground),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.label,
+                  style: context.textStyles.labelLarge?.copyWith(
+                    color: foreground,
+                  ),
+                ),
+              ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

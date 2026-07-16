@@ -9,11 +9,11 @@ import 'package:gait_sense/services/feature_pipeline.dart';
 /// Consumes the resampled [SensorSample] stream and emits normalized feature
 /// windows via a causal [StreamingFeatureExtractor].
 ///
-/// The bloc subscribes directly to the service-level sample stream (a broadcast
-/// stream) rather than to `SensorStreamBloc`'s state, so it sees every sample
-/// instead of only the latest-at-rebuild. The window math is the causal live
-/// path documented in `feature_pipeline.dart`; numerical parity with the Python
-/// reference is validated separately on the offline path
+/// The bloc subscribes directly to the service-level sample stream (a
+/// broadcast stream) rather than to a rebuild-driven state, so it sees every
+/// sample instead of only the latest-at-rebuild. The window math is the
+/// causal live path documented in `feature_pipeline.dart`; numerical parity
+/// with the Python reference is validated separately on the offline path
 /// (`test/feature_pipeline_test.dart`).
 class FeaturePipelineBloc
     extends Bloc<FeaturePipelineEvent, FeaturePipelineState> {

@@ -23,12 +23,6 @@ abstract final class AppRoutes {
   static const recordRecoveredSummary =
       '/record/$recordRecoveredSummarySegment';
 
-  /// Relative path segment for [recordDebugSensors], nested under [record].
-  static const recordDebugSensorsSegment = 'debug-sensors';
-
-  /// Debug sensors path, nested under the recording tab.
-  static const recordDebugSensors = '/record/$recordDebugSensorsSegment';
-
   /// Relative path segment for [recordInstructions], nested under [record].
   static const recordInstructionsSegment = 'instructions';
 
@@ -97,9 +91,6 @@ enum AppSubRoute {
 
   /// Recovered-session summary, nested under [AppTab.record].
   recordRecoveredSummary,
-
-  /// Debug sensors screen, nested under [AppTab.record].
-  recordDebugSensors,
 
   /// On-demand placement-instructions reminder, nested under [AppTab.record].
   recordInstructions,

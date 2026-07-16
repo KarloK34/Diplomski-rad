@@ -39,7 +39,7 @@ class SessionImportAction extends StatelessWidget {
     final repository = context.read<SessionLogRepository>();
     final SessionLog session;
     try {
-      session = repository.importFromJson(await file.readAsString());
+      session = await repository.importFromJson(await file.readAsString());
     } on Object catch (error) {
       if (!context.mounted) return;
       context.showSnackBar('Neuspješan uvoz sesije: $error');

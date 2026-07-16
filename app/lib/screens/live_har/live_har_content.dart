@@ -17,7 +17,16 @@ class LiveHarContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Scoped to status/countdown only: elapsed, predictionCount, latency and
+    // latest all change every tick during an active session and would
+    // otherwise tear down and rebuild the AppBar/FAB shell on every one of
+    // them. The frequently-changing readouts get their own BlocBuilder in
+    // [_body] instead, so only that subtree pays for those rebuilds.
     return BlocBuilder<RecordingSessionBloc, RecordingSessionState>(
+      buildWhen: (previous, current) =>
+          previous.status != current.status ||
+          previous.countdownSecondsRemaining !=
+              current.countdownSecondsRemaining,
       builder: (context, state) {
         final bloc = context.read<RecordingSessionBloc>();
         return PopScope(
@@ -36,11 +45,6 @@ class LiveHarContent extends StatelessWidget {
                         icon: const Icon(Icons.settings_outlined),
                         tooltip: 'Postavke',
                         onPressed: () => _openSettings(context),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.sensors),
-                        tooltip: 'Debug senzori',
-                        onPressed: () => _openDebugScreen(context),
                       ),
                       const SessionImportAction(),
                       IconButton(
@@ -65,6 +69,11 @@ class LiveHarContent extends StatelessWidget {
     );
   }
 
+  // [state] here is only as fresh as the outer BlocBuilder's buildWhen
+  // allows — fine for the preparing countdown (already covered by it), but
+  // the idle/recording/saving/saved panel needs fields that change far more
+  // often, so it reads the bloc's live state through its own BlocBuilder
+  // instead of relying on this one.
   Widget _body(RecordingSessionState state, RecordingSessionBloc bloc) {
     switch (state.status) {
       case RecordingStatus.preparing:
@@ -77,24 +86,22 @@ class LiveHarContent extends StatelessWidget {
       case RecordingStatus.recording:
       case RecordingStatus.saving:
       case RecordingStatus.saved:
-        return RecordingStatusPanel(
-          status: state.status,
-          elapsed: state.elapsed,
-          maxSessionDuration: bloc.maxSessionDuration,
-          predictionCount: state.predictionCount,
-          latencyP50Ms: state.latencyP50Ms,
-          latencyP95Ms: state.latencyP95Ms,
-          latest: state.latest,
+        return BlocBuilder<RecordingSessionBloc, RecordingSessionState>(
+          builder: (context, liveState) => RecordingStatusPanel(
+            status: liveState.status,
+            elapsed: liveState.elapsed,
+            maxSessionDuration: bloc.maxSessionDuration,
+            predictionCount: liveState.predictionCount,
+            latencyP50Ms: liveState.latencyP50Ms,
+            latencyP95Ms: liveState.latencyP95Ms,
+            latest: liveState.latest,
+          ),
         );
     }
   }
 
   void _openSettings(BuildContext context) {
     unawaited(context.push(AppRoutes.recordSettings));
-  }
-
-  void _openDebugScreen(BuildContext context) {
-    unawaited(context.push(AppRoutes.recordDebugSensors));
   }
 
   void _openInstructions(BuildContext context) {

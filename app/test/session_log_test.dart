@@ -160,7 +160,7 @@ void main() {
       );
     });
 
-    test('importFromJson decodes a session exported by toJson', () {
+    test('importFromJson decodes a session exported by toJson', () async {
       final repo = SessionLogRepository(
         documentsDirectory: () async => Directory.systemTemp,
       );
@@ -174,17 +174,17 @@ void main() {
         predictions: [prediction('wlk', 1), prediction('sit', 2)],
       );
 
-      final imported = repo.importFromJson(jsonEncode(log.toJson()));
+      final imported = await repo.importFromJson(jsonEncode(log.toJson()));
 
       expect(imported, log);
     });
 
-    test('importFromJson throws FormatException on malformed JSON', () {
+    test('importFromJson throws FormatException on malformed JSON', () async {
       final repo = SessionLogRepository(
         documentsDirectory: () async => Directory.systemTemp,
       );
-      expect(
-        () => repo.importFromJson('{"startedAt": "not valid json'),
+      await expectLater(
+        repo.importFromJson('{"startedAt": "not valid json'),
         throwsFormatException,
       );
     });
