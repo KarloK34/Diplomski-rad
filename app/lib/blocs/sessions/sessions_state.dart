@@ -44,8 +44,7 @@ class SessionsState extends Equatable {
   final Object? error;
 
   /// The most recently recorded session, or null when there are none.
-  SessionSummaryRecord? get latest =>
-      sessions.isEmpty ? null : sessions.first;
+  SessionSummaryRecord? get latest => sessions.isEmpty ? null : sessions.first;
 
   /// Copies with selected fields replaced.
   SessionsState copyWith({

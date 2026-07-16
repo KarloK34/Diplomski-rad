@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/utils/activity_labels.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
@@ -41,7 +42,8 @@ class ClassTotal extends Equatable {
     required this.fraction,
   });
 
-  /// Model class code (e.g. `wlk`); map to a display name via the labels util.
+  /// Model class code (e.g. `wlk`), or [restingActivityCode] when `std`/`sit`
+  /// windows were merged for display; map to a name via the labels util.
   final String label;
 
   /// Number of prediction windows assigned to this class.
@@ -67,7 +69,8 @@ class TimelineSegment extends Equatable {
     required this.windows,
   });
 
-  /// Model class code for the segment.
+  /// Model class code for the segment, or [restingActivityCode] when it
+  /// collapses a `std`/`sit` run for display.
   final String label;
 
   /// Offset from session start at which this segment begins.
@@ -534,14 +537,16 @@ Duration sessionDuration(SessionLog session) {
 }
 
 /// Per-class totals, sorted by occupied time descending (ties broken by class
-/// code so the order is stable for a given input).
+/// code so the order is stable for a given input). `std`/`sit` windows are
+/// merged into [restingActivityCode] (see its doc comment for why).
 List<ClassTotal> computeClassTotals(SessionLog session) {
   final predictions = session.predictions;
   if (predictions.isEmpty) return const [];
 
   final counts = <String, int>{};
   for (final prediction in predictions) {
-    counts[prediction.label] = (counts[prediction.label] ?? 0) + 1;
+    final label = displayActivityCode(prediction.label);
+    counts[label] = (counts[label] ?? 0) + 1;
   }
 
   final total = predictions.length;
@@ -566,6 +571,8 @@ List<ClassTotal> computeClassTotals(SessionLog session) {
 }
 
 /// Collapses consecutive same-label predictions into [TimelineSegment]s.
+/// `std`/`sit` windows are merged into [restingActivityCode] (see its doc
+/// comment for why), so a run alternating between the two becomes one segment.
 List<TimelineSegment> computeTimeline(SessionLog session) {
   final predictions = session.predictions;
   if (predictions.isEmpty) return const [];
@@ -582,7 +589,9 @@ List<TimelineSegment> computeTimeline(SessionLog session) {
   var runStart = 0;
   for (var i = 1; i <= predictions.length; i++) {
     final atEnd = i == predictions.length;
-    if (!atEnd && predictions[i].label == predictions[runStart].label) {
+    if (!atEnd &&
+        displayActivityCode(predictions[i].label) ==
+            displayActivityCode(predictions[runStart].label)) {
       continue;
     }
 
@@ -592,7 +601,7 @@ List<TimelineSegment> computeTimeline(SessionLog session) {
 
     segments.add(
       TimelineSegment(
-        label: predictions[runStart].label,
+        label: displayActivityCode(predictions[runStart].label),
         start: start,
         end: end,
         windows: i - runStart,

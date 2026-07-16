@@ -51,8 +51,7 @@ class SessionsScreen extends StatelessWidget {
               for (final record in sessions) ...[
                 SessionListCard(
                   record: record,
-                  onTap: () =>
-                      context.push(AppRoutes.sessionDetail(record.id)),
+                  onTap: () => context.push(AppRoutes.sessionDetail(record.id)),
                 ),
                 SizedBox(height: spacing.sm),
               ],

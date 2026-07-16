@@ -72,8 +72,7 @@ Map<String, dynamic> qualitySummaryToJson(SessionQualitySummary quality) => {
       _stableSegmentToJson(segment),
   ],
   'stableLocomotionWindowCount': quality.stableLocomotionWindowCount,
-  'stableLocomotionDurationMs':
-      quality.stableLocomotionDuration.inMilliseconds,
+  'stableLocomotionDurationMs': quality.stableLocomotionDuration.inMilliseconds,
   'hasEnoughStableLocomotion': quality.hasEnoughStableLocomotion,
   'gaitSegments': [
     for (final segment in quality.gaitSegments) _gaitSegmentToJson(segment),
@@ -93,13 +92,13 @@ SessionQualitySummary qualitySummaryFromJson(Map<String, dynamic> json) {
   return SessionQualitySummary(
     predictionCount: (json['predictionCount'] as num).toInt(),
     rawSmoothedChangeCount: (json['rawSmoothedChangeCount'] as num).toInt(),
-    rawSmoothedChangeFraction:
-        (json['rawSmoothedChangeFraction'] as num).toDouble(),
+    rawSmoothedChangeFraction: (json['rawSmoothedChangeFraction'] as num)
+        .toDouble(),
     effectiveLabelWindowCounts: _intMap(json['effectiveLabelWindowCounts']),
     rawLabelWindowCounts: _intMap(json['rawLabelWindowCounts']),
     stableLocomotionSegments: stable,
-    stableLocomotionWindowCount:
-        (json['stableLocomotionWindowCount'] as num).toInt(),
+    stableLocomotionWindowCount: (json['stableLocomotionWindowCount'] as num)
+        .toInt(),
     stableLocomotionDuration: Duration(
       milliseconds: (json['stableLocomotionDurationMs'] as num).toInt(),
     ),
@@ -216,8 +215,9 @@ GaitTemporalParameters _temporalFromJson(Map<String, dynamic> json) {
     maximumStepTime: requiredMs(json['maximumStepTimeMs']),
     strideIntervalCount: (json['strideIntervalCount'] as num).toInt(),
     meanStrideTime: optionalMs(json['meanStrideTimeMs']),
-    strideTimeStandardDeviation:
-        optionalMs(json['strideTimeStandardDeviationMs']),
+    strideTimeStandardDeviation: optionalMs(
+      json['strideTimeStandardDeviationMs'],
+    ),
     strideTimeCoefficientOfVariation:
         (json['strideTimeCoefficientOfVariation'] as num?)?.toDouble(),
     meanInstantCadenceStepsPerMinute:
@@ -250,11 +250,11 @@ GaitCadenceSummary _cadenceFromJson(Map<String, dynamic> json) {
   final temporal = json['temporalParameters'];
   return GaitCadenceSummary(
     signalSegmentCount: (json['signalSegmentCount'] as num).toInt(),
-    sampledSignalSegmentCount:
-        (json['sampledSignalSegmentCount'] as num).toInt(),
+    sampledSignalSegmentCount: (json['sampledSignalSegmentCount'] as num)
+        .toInt(),
     computedResultCount: (json['computedResultCount'] as num).toInt(),
-    averageCadenceStepsPerMinute:
-        (json['averageCadenceStepsPerMinute'] as num?)?.toDouble(),
+    averageCadenceStepsPerMinute: (json['averageCadenceStepsPerMinute'] as num?)
+        ?.toDouble(),
     totalStepCount: (json['totalStepCount'] as num).toInt(),
     temporalParameters: temporal == null
         ? null
@@ -287,8 +287,8 @@ GaitWalkingSpeedSummary _walkingSpeedFromJson(Map<String, dynamic> json) =>
     GaitWalkingSpeedSummary(
       signalSegmentCount: (json['signalSegmentCount'] as num).toInt(),
       computedResultCount: (json['computedResultCount'] as num).toInt(),
-      averageWalkingSpeedMs:
-          (json['averageWalkingSpeedMs'] as num?)?.toDouble(),
+      averageWalkingSpeedMs: (json['averageWalkingSpeedMs'] as num?)
+          ?.toDouble(),
       averageStepLengthM: (json['averageStepLengthM'] as num?)?.toDouble(),
       status: _enumByName(
         GaitWalkingSpeedStatus.values,

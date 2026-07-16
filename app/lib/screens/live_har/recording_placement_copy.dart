@@ -16,5 +16,7 @@ class RecordingPlacementCopy {
       'Mobitel držite uspravno, u prednjem džepu hlača na bedru. Koristite '
       'hlače sa što užim džepom kako bi smanjili pomicanje mobitela unutar '
       'džepa. Nakon što pritisnete Start, imate nekoliko sekundi da ga '
-      'spremite u džep — vibracija javlja kad snimanje stvarno počne.';
+      'spremite u džep — vibracija javlja kad snimanje stvarno počne. '
+      'Ekran slobodno zaključajte — snimanje se nastavlja u pozadini, '
+      'a zaključan ekran sprječava slučajne dodire iz džepa.';
 }

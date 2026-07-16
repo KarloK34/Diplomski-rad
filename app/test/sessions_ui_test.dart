@@ -24,8 +24,7 @@ class _FakeSessionRepository implements SessionRepository {
   final List<SessionSummaryRecord> _sessions;
 
   @override
-  Stream<List<SessionSummaryRecord>> watchSessions() =>
-      Stream.value(_sessions);
+  Stream<List<SessionSummaryRecord>> watchSessions() => Stream.value(_sessions);
 
   @override
   Future<void> saveSession(SessionSummaryRecord record) async {}

@@ -97,7 +97,7 @@ abstract final class GaitSenseTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 72,
+        height: AppSpacing.navigationBarHeight,
         backgroundColor: colorScheme.surfaceContainerLowest,
         indicatorColor: colorScheme.primaryContainer.withValues(alpha: 0.18),
         labelTextStyle: WidgetStatePropertyAll(textTheme.labelSmall),

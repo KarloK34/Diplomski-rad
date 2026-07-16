@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_state.dart';
+import 'package:gait_sense/widgets/buttons/hold_to_confirm_fab.dart';
 
 /// Start/Stop control whose appearance follows the recording [status].
 class RecordingFab extends StatelessWidget {
@@ -20,7 +21,8 @@ class RecordingFab extends StatelessWidget {
   /// Invoked when tapped while idle, saved, or unavailable (retry).
   final VoidCallback onStart;
 
-  /// Invoked when tapped while recording.
+  /// Invoked when held down while recording — a plain tap would let a
+  /// pocketed touch end the session, so this needs a deliberate hold.
   final VoidCallback onStop;
 
   /// Invoked when tapped while preparing (cancels the countdown).
@@ -49,10 +51,10 @@ class RecordingFab extends StatelessWidget {
           label: Text('Spremanje…'),
         );
       case RecordingStatus.recording:
-        return FloatingActionButton.extended(
-          onPressed: onStop,
-          icon: const Icon(Icons.stop),
-          label: const Text('Stop'),
+        return HoldToConfirmFab(
+          icon: Icons.stop,
+          label: 'Držite za stop',
+          onConfirmed: onStop,
         );
       case RecordingStatus.unavailable:
         return FloatingActionButton.extended(

@@ -20,46 +20,45 @@ class MainShell extends StatelessWidget {
       builder: (context, state) {
         final isRecordingTab =
             navigationShell.currentIndex == AppTab.record.index;
-        // preparing counts as active too: switching tabs mid-countdown would
-        // leave the controller armed with no visible way back to cancel it.
-        final isSessionActive =
-            state.status == RecordingStatus.preparing ||
-            state.status == RecordingStatus.recording ||
-            state.status == RecordingStatus.saving;
-        final showNavigation = !(isRecordingTab && isSessionActive);
+        final showNavigation = !(isRecordingTab && state.isSessionActive);
 
         return Scaffold(
           body: navigationShell,
-          bottomNavigationBar: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: showNavigation
-                ? NavigationBar(
-                    selectedIndex: navigationShell.currentIndex,
-                    onDestinationSelected: _onDestinationSelected,
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.dashboard_outlined),
-                        selectedIcon: Icon(Icons.dashboard),
-                        label: 'Početna',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.fiber_manual_record_outlined),
-                        selectedIcon: Icon(Icons.fiber_manual_record),
-                        label: 'Snimanje',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.insights_outlined),
-                        selectedIcon: Icon(Icons.insights),
-                        label: 'Sesije',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.person_outline),
-                        selectedIcon: Icon(Icons.person),
-                        label: 'Profil',
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
+          bottomNavigationBar: ExcludeSemantics(
+            excluding: !showNavigation,
+            child: IgnorePointer(
+              ignoring: !showNavigation,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 180),
+                opacity: showNavigation ? 1 : 0,
+                child: NavigationBar(
+                  selectedIndex: navigationShell.currentIndex,
+                  onDestinationSelected: _onDestinationSelected,
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard),
+                      label: 'Početna',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.fiber_manual_record_outlined),
+                      selectedIcon: Icon(Icons.fiber_manual_record),
+                      label: 'Snimanje',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.insights_outlined),
+                      selectedIcon: Icon(Icons.insights),
+                      label: 'Sesije',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: 'Profil',
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       },

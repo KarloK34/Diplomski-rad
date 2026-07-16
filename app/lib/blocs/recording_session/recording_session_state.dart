@@ -86,6 +86,14 @@ class RecordingSessionState extends Equatable {
   /// Whether a session is currently recording.
   bool get isRecording => status == RecordingStatus.recording;
 
+  /// Whether a session is in progress somewhere between start and being
+  /// saved. Preparing counts as active too: leaving mid-countdown would
+  /// leave the controller armed with no visible way back to cancel it.
+  bool get isSessionActive =>
+      status == RecordingStatus.preparing ||
+      status == RecordingStatus.recording ||
+      status == RecordingStatus.saving;
+
   /// Returns a copy with the given fields replaced. Nullable fields cannot be
   /// cleared through this method; the idle state is built with the
   /// [RecordingSessionState.initial] constructor instead.

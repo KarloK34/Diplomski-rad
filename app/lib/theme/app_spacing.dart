@@ -14,6 +14,7 @@ class GaitSenseSpacing extends ThemeExtension<GaitSenseSpacing> {
     required this.screenMargin,
     required this.touchTarget,
     required this.prominentActionHeight,
+    required this.navigationBarHeight,
   });
 
   /// Default Gait Sense spacing scale.
@@ -27,6 +28,7 @@ class GaitSenseSpacing extends ThemeExtension<GaitSenseSpacing> {
     screenMargin: 16,
     touchTarget: 48,
     prominentActionHeight: 56,
+    navigationBarHeight: 72,
   );
 
   /// Smallest inner gap.
@@ -56,6 +58,10 @@ class GaitSenseSpacing extends ThemeExtension<GaitSenseSpacing> {
   /// Primary recording action height.
   final double prominentActionHeight;
 
+  /// Bottom navigation bar height, used to keep FAB position consistent
+  /// when a screen conditionally hides the navigation bar.
+  final double navigationBarHeight;
+
   @override
   GaitSenseSpacing copyWith({
     double? xxs,
@@ -67,6 +73,7 @@ class GaitSenseSpacing extends ThemeExtension<GaitSenseSpacing> {
     double? screenMargin,
     double? touchTarget,
     double? prominentActionHeight,
+    double? navigationBarHeight,
   }) {
     return GaitSenseSpacing(
       xxs: xxs ?? this.xxs,
@@ -79,6 +86,7 @@ class GaitSenseSpacing extends ThemeExtension<GaitSenseSpacing> {
       touchTarget: touchTarget ?? this.touchTarget,
       prominentActionHeight:
           prominentActionHeight ?? this.prominentActionHeight,
+      navigationBarHeight: navigationBarHeight ?? this.navigationBarHeight,
     );
   }
 
@@ -97,6 +105,11 @@ class GaitSenseSpacing extends ThemeExtension<GaitSenseSpacing> {
       prominentActionHeight: _lerp(
         prominentActionHeight,
         other.prominentActionHeight,
+        t,
+      ),
+      navigationBarHeight: _lerp(
+        navigationBarHeight,
+        other.navigationBarHeight,
         t,
       ),
     );
@@ -136,4 +149,8 @@ abstract final class AppSpacing {
 
   /// Primary recording action height.
   static const double prominentActionHeight = 56;
+
+  /// Bottom navigation bar height, used to keep FAB position consistent
+  /// when a screen conditionally hides the navigation bar.
+  static const double navigationBarHeight = 72;
 }

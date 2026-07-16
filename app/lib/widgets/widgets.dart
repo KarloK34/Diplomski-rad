@@ -5,6 +5,7 @@
 library;
 
 export 'buttons/google_sign_in_button.dart';
+export 'buttons/hold_to_confirm_fab.dart';
 export 'buttons/primary_button.dart';
 export 'buttons/recording_fab.dart';
 export 'buttons/secondary_button.dart';

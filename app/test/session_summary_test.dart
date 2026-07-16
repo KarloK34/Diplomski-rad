@@ -128,20 +128,20 @@ void main() {
     test('counts, scales time by fraction, and sorts by windows desc', () {
       final log = session(
         predictions: [
-          predictionAt('sit', 2),
-          predictionAt('sit', 4),
+          predictionAt('jog', 2),
+          predictionAt('jog', 4),
           predictionAt('wlk', 6),
           predictionAt('wlk', 8),
           predictionAt('wlk', 10),
-          predictionAt('std', 12),
+          predictionAt('ups', 12),
         ],
         stoppedAt: start.add(const Duration(seconds: 60)),
       );
 
       final totals = computeClassTotals(log);
 
-      // 3 wlk, 2 sit, 1 std over 6 windows, sorted by window count descending.
-      expect(totals.map((t) => t.label).toList(), ['wlk', 'sit', 'std']);
+      // 3 wlk, 2 jog, 1 ups over 6 windows, sorted by window count descending.
+      expect(totals.map((t) => t.label).toList(), ['wlk', 'jog', 'ups']);
       expect(totals.map((t) => t.windows).toList(), [3, 2, 1]);
       expect(totals[0].fraction, closeTo(0.5, 1e-9));
       expect(totals[1].fraction, closeTo(1 / 3, 1e-9));
@@ -150,6 +150,22 @@ void main() {
       expect(totals[0].time, const Duration(seconds: 30));
       expect(totals[1].time, const Duration(seconds: 20));
       expect(totals[2].time, const Duration(seconds: 10));
+    });
+
+    test('merges std and sit windows into one resting total', () {
+      final log = session(
+        predictions: [
+          predictionAt('sit', 2),
+          predictionAt('std', 4),
+          predictionAt('wlk', 6),
+        ],
+        stoppedAt: start.add(const Duration(seconds: 30)),
+      );
+
+      final totals = computeClassTotals(log);
+
+      expect(totals.map((t) => t.label).toList(), ['rest', 'wlk']);
+      expect(totals.map((t) => t.windows).toList(), [2, 1]);
     });
   });
 
@@ -161,12 +177,12 @@ void main() {
     test('collapses runs, anchors first at 0 and last at duration', () {
       final log = session(
         predictions: [
-          predictionAt('sit', 2),
-          predictionAt('sit', 4),
+          predictionAt('jog', 2),
+          predictionAt('jog', 4),
           predictionAt('wlk', 6),
           predictionAt('wlk', 8),
           predictionAt('wlk', 10),
-          predictionAt('std', 12),
+          predictionAt('ups', 12),
         ],
         stoppedAt: start.add(const Duration(seconds: 60)),
       );
@@ -175,7 +191,7 @@ void main() {
 
       expect(timeline.length, 3);
 
-      expect(timeline[0].label, 'sit');
+      expect(timeline[0].label, 'jog');
       expect(timeline[0].start, Duration.zero);
       // Interior boundary uses the timestamp where the new label first appears.
       expect(timeline[0].end, const Duration(seconds: 6));
@@ -186,7 +202,7 @@ void main() {
       expect(timeline[1].end, const Duration(seconds: 12));
       expect(timeline[1].windows, 3);
 
-      expect(timeline[2].label, 'std');
+      expect(timeline[2].label, 'ups');
       expect(timeline[2].start, const Duration(seconds: 12));
       // Last segment stays anchored at the full session duration for display.
       expect(timeline[2].end, const Duration(seconds: 60));
@@ -204,6 +220,30 @@ void main() {
       expect(timeline.single.start, Duration.zero);
       expect(timeline.single.end, const Duration(seconds: 30));
       expect(timeline.single.windows, 2);
+    });
+
+    test('merges an alternating std/sit run into one resting segment', () {
+      final log = session(
+        predictions: [
+          predictionAt('std', 2),
+          predictionAt('sit', 4),
+          predictionAt('std', 6),
+          predictionAt('wlk', 8),
+        ],
+        stoppedAt: start.add(const Duration(seconds: 20)),
+      );
+
+      final timeline = computeTimeline(log);
+
+      expect(timeline.length, 2);
+      expect(timeline[0].label, 'rest');
+      expect(timeline[0].start, Duration.zero);
+      expect(timeline[0].end, const Duration(seconds: 8));
+      expect(timeline[0].windows, 3);
+      expect(timeline[1].label, 'wlk');
+      expect(timeline[1].start, const Duration(seconds: 8));
+      expect(timeline[1].end, const Duration(seconds: 20));
+      expect(timeline[1].windows, 1);
     });
   });
 

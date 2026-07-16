@@ -101,6 +101,22 @@ void main() {
 
   tearDown(() => tempDir.deleteSync(recursive: true));
 
+  // The automated test binding pumps inside a fake-async zone, so real
+  // `dart:io` work — both the direct `SessionLogRepository` calls below and
+  // the ones `_handleBackNavigation` awaits internally (deletePendingDraft,
+  // cubit refresh) — never gets a turn on the real event loop unless
+  // explicitly given one via `runAsync`. Interleaving it with pumps lets both
+  // the real I/O and the widget tree's reaction to it (including the pop
+  // transition) actually complete before assertions run.
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 5; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+  }
+
   testWidgets(
     'backing out of a session with data shows a confirm dialog; '
     'cancelling stays on the summary',
@@ -108,12 +124,12 @@ void main() {
       await pumpSummary(tester, sessionWithData(DateTime.utc(2026)));
 
       await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(find.text('Odbaciti sesiju?'), findsOneWidget);
 
       await tester.tap(find.text('Odustani'));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(find.text('Sažetak sesije'), findsOneWidget);
       expect(find.text('Odbaciti sesiju?'), findsNothing);
@@ -125,18 +141,19 @@ void main() {
     (tester) async {
       final startedAt = DateTime.utc(2026);
       final session = sessionWithData(startedAt);
-      await repository.savePendingDraft(session);
+      await tester.runAsync(() => repository.savePendingDraft(session));
 
       await pumpSummary(tester, session);
 
       await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Odbaci sesiju'));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(find.text('Open'), findsOneWidget);
       expect(find.text('Sažetak sesije'), findsNothing);
-      expect(await repository.listPendingDrafts(), isEmpty);
+      final drafts = await tester.runAsync(repository.listPendingDrafts);
+      expect(drafts, isEmpty);
       expect(pendingSessionsCubit.state.sessions, isEmpty);
     },
   );
@@ -151,16 +168,17 @@ void main() {
         modelInfo: const {},
         predictions: const [],
       );
-      await repository.savePendingDraft(empty);
+      await tester.runAsync(() => repository.savePendingDraft(empty));
 
       await pumpSummary(tester, empty);
 
       await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(find.text('Odbaciti sesiju?'), findsNothing);
       expect(find.text('Open'), findsOneWidget);
-      expect(await repository.listPendingDrafts(), isEmpty);
+      final drafts = await tester.runAsync(repository.listPendingDrafts);
+      expect(drafts, isEmpty);
     },
   );
 }

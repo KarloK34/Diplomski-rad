@@ -20,35 +20,44 @@ class LiveHarContent extends StatelessWidget {
     return BlocBuilder<RecordingSessionBloc, RecordingSessionState>(
       builder: (context, state) {
         final bloc = context.read<RecordingSessionBloc>();
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Live HAR'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Postavke',
-                onPressed: () => _openSettings(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.sensors),
-                tooltip: 'Debug senzori',
-                onPressed: () => _openDebugScreen(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.info_outline),
-                tooltip: 'Upute',
-                onPressed: () => _openInstructions(context),
-              ),
-            ],
-          ),
-          body: _body(state, bloc),
-          floatingActionButton: RecordingFab(
-            status: state.status,
-            countdownSecondsRemaining: state.countdownSecondsRemaining,
-            onStart: () => bloc.add(const RecordingSessionStarted()),
-            onStop: () => bloc.add(const RecordingSessionStopped()),
-            onCancel: () =>
-                bloc.add(const RecordingSessionCountdownCancelled()),
+        return PopScope(
+          // A pocketed back-gesture must not be able to leave this screen
+          // while a session is in flight — there'd be no visible way back.
+          canPop: !state.isSessionActive,
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('Live HAR'),
+              // Hidden while a session is active so a pocketed touch has
+              // nothing to navigate away to.
+              actions: state.isSessionActive
+                  ? null
+                  : [
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        tooltip: 'Postavke',
+                        onPressed: () => _openSettings(context),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.sensors),
+                        tooltip: 'Debug senzori',
+                        onPressed: () => _openDebugScreen(context),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline),
+                        tooltip: 'Upute',
+                        onPressed: () => _openInstructions(context),
+                      ),
+                    ],
+            ),
+            body: _body(state, bloc),
+            floatingActionButton: RecordingFab(
+              status: state.status,
+              countdownSecondsRemaining: state.countdownSecondsRemaining,
+              onStart: () => bloc.add(const RecordingSessionStarted()),
+              onStop: () => bloc.add(const RecordingSessionStopped()),
+              onCancel: () =>
+                  bloc.add(const RecordingSessionCountdownCancelled()),
+            ),
           ),
         );
       },
