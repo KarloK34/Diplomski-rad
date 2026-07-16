@@ -45,6 +45,7 @@ class MetricTrendChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.gaitColors;
     final textStyle = context.textStyles.bodySmall;
+    final spacing = context.spacing;
 
     final values = points.map((point) => point.value).toList();
     var low = values.reduce(min);
@@ -59,7 +60,8 @@ class MetricTrendChart extends StatelessWidget {
     final yInterval = (maxY - minY) / 3;
     final labelEvery = points.length <= 6 ? 1 : (points.length / 6).ceil();
 
-    return SizedBox(
+    return Container(
+      padding: EdgeInsets.only(right: spacing.xs),
       height: 200,
       child: LineChart(
         LineChartData(
@@ -83,7 +85,7 @@ class MetricTrendChart extends StatelessWidget {
                 reservedSize: 44,
                 interval: yInterval,
                 getTitlesWidget: (value, _) => Padding(
-                  padding: const EdgeInsets.only(right: 4),
+                  padding: EdgeInsets.only(right: spacing.xxs),
                   child: Text(formatValue(value), style: textStyle),
                 ),
               ),
@@ -101,7 +103,7 @@ class MetricTrendChart extends StatelessWidget {
                     return const SizedBox.shrink();
                   }
                   return Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                    padding: EdgeInsets.only(top: spacing.xxs),
                     child: Text(
                       formatShortDate(points[index].time),
                       style: textStyle,

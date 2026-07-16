@@ -1,18 +1,20 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:gait_sense/models/session_summary_record.dart';
 import 'package:gait_sense/theme/activity_color.dart';
-import 'package:gait_sense/theme/app_colors.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
-import 'package:gait_sense/utils/session_summary_format.dart';
+import 'package:gait_sense/widgets/charts/activity_comparison_axis_chart.dart';
+import 'package:gait_sense/widgets/charts/activity_comparison_bars_chart.dart';
 import 'package:gait_sense/widgets/charts/chart_legend.dart';
 
 /// Stacked bars comparing the activity mix (percent of windows) across recent
 /// sessions, one bar per session.
 ///
-/// Expects [sessions] in chronological order (oldest first).
-class ActivityComparisonChart extends StatelessWidget {
+/// Expects [sessions] in chronological order (oldest first). Bars keep a
+/// fixed width and scroll horizontally instead of shrinking to fit, so the
+/// session count is never capped; the chart opens scrolled to the most
+/// recent session.
+class ActivityComparisonChart extends StatefulWidget {
   /// Creates the comparison chart for [sessions].
   const ActivityComparisonChart({required this.sessions, super.key});
 
@@ -20,9 +22,37 @@ class ActivityComparisonChart extends StatelessWidget {
   final List<SessionSummaryRecord> sessions;
 
   @override
+  State<ActivityComparisonChart> createState() =>
+      _ActivityComparisonChartState();
+}
+
+class _ActivityComparisonChartState extends State<ActivityComparisonChart> {
+  // Left axis is rendered as its own fixed chart outside the horizontal
+  // scroll view, so it stays visible while bars scroll underneath it.
+  static const double _leftAxisWidth = 40;
+  static const double _bottomReservedSize = 28;
+
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.gaitColors;
-    final textStyle = context.textStyles.bodySmall;
+    final sessions = widget.sessions;
 
     // Canonical activity order (from the label map) restricted to what appears.
     final present = <String>[
@@ -36,60 +66,23 @@ class ActivityComparisonChart extends StatelessWidget {
       children: [
         SizedBox(
           height: 200,
-          child: BarChart(
-            BarChartData(
-              maxY: 100,
-              alignment: BarChartAlignment.spaceAround,
-              barTouchData: const BarTouchData(enabled: false),
-              gridData: FlGridData(
-                drawVerticalLine: false,
-                horizontalInterval: 25,
-                getDrawingHorizontalLine: (_) =>
-                    FlLine(color: colors.chartGrid, strokeWidth: 1),
-              ),
-              borderData: FlBorderData(show: false),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    interval: 25,
-                    reservedSize: 36,
-                    getTitlesWidget: (value, _) => Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: Text('${value.round()}%', style: textStyle),
-                    ),
-                  ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 28,
-                    getTitlesWidget: (value, _) {
-                      final index = value.round();
-                      if (index < 0 || index >= sessions.length) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          formatShortDate(sessions[index].startedAt),
-                          style: textStyle,
-                        ),
-                      );
-                    },
-                  ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(
+                width: _leftAxisWidth,
+                child: ActivityComparisonAxisChart(
+                  bottomReservedSize: _bottomReservedSize,
                 ),
               ),
-              barGroups: [
-                for (var i = 0; i < sessions.length; i++)
-                  BarChartGroupData(
-                    x: i,
-                    barRods: [_rod(sessions[i], colors)],
-                  ),
-              ],
-            ),
+              Expanded(
+                child: ActivityComparisonBarsChart(
+                  sessions: sessions,
+                  scrollController: _scrollController,
+                  bottomReservedSize: _bottomReservedSize,
+                ),
+              ),
+            ],
           ),
         ),
         SizedBox(height: context.spacing.sm),
@@ -103,25 +96,6 @@ class ActivityComparisonChart extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-
-  BarChartRodData _rod(SessionSummaryRecord session, GaitSenseColors colors) {
-    final stack = <BarChartRodStackItem>[];
-    var from = 0.0;
-    for (final total in session.classTotals) {
-      final to = from + total.fraction * 100;
-      stack.add(
-        BarChartRodStackItem(from, to, colors.forActivity(total.label)),
-      );
-      from = to;
-    }
-    return BarChartRodData(
-      toY: from,
-      width: 18,
-      color: Colors.transparent,
-      borderRadius: BorderRadius.zero,
-      rodStackItems: stack,
     );
   }
 }

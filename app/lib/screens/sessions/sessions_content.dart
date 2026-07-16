@@ -7,11 +7,11 @@ import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 
-/// Session history and insights tab: a list of saved sessions plus
-/// cross-session trend charts.
-class SessionsScreen extends StatelessWidget {
-  /// Creates the sessions screen.
-  const SessionsScreen({super.key});
+/// Session history and insights tab body: a filterable, paginated list of
+/// saved sessions plus cross-session trend charts.
+class SessionsContent extends StatelessWidget {
+  /// Creates the sessions tab content.
+  const SessionsContent({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -48,13 +48,11 @@ class SessionsScreen extends StatelessWidget {
                 onAction: () => context.go(AppRoutes.record),
               )
             else ...[
-              for (final record in sessions) ...[
-                SessionListCard(
-                  record: record,
-                  onTap: () => context.push(AppRoutes.sessionDetail(record.id)),
-                ),
-                SizedBox(height: spacing.sm),
-              ],
+              FilteredSessionsList(
+                sessions: sessions,
+                onSessionTap: (id) =>
+                    context.push(AppRoutes.sessionDetail(id)),
+              ),
               SizedBox(height: spacing.md),
               SessionsTrends(sessions: sessions),
             ],

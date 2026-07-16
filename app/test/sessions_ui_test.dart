@@ -10,7 +10,7 @@ import 'package:gait_sense/repositories/session_log_repository.dart';
 import 'package:gait_sense/repositories/session_repository.dart';
 import 'package:gait_sense/screens/home_screen.dart';
 import 'package:gait_sense/screens/session_detail/session_detail_content.dart';
-import 'package:gait_sense/screens/sessions_screen.dart';
+import 'package:gait_sense/screens/sessions/sessions_screen.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_walking_speed.dart';
@@ -119,8 +119,8 @@ SessionSummaryRecord _record(DateTime startedAt, double cadence, double speed) {
 
 void main() {
   final sessions = [
-    _record(DateTime.utc(2026, 1, 2, 9), 120, 1.3),
-    _record(DateTime.utc(2026, 1, 1, 9), 100, 1.1),
+    _record(DateTime.now().subtract(const Duration(days: 1)), 120, 1.3),
+    _record(DateTime.now().subtract(const Duration(days: 2)), 100, 1.1),
   ];
 
   Future<void> pumpWithCubit(WidgetTester tester, Widget screen) async {

@@ -11,7 +11,7 @@ import 'package:gait_sense/screens/live_har/recording_instructions_screen.dart';
 import 'package:gait_sense/screens/profile_screen.dart';
 import 'package:gait_sense/screens/session_detail/session_detail_screen.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
-import 'package:gait_sense/screens/sessions_screen.dart';
+import 'package:gait_sense/screens/sessions/sessions_screen.dart';
 import 'package:gait_sense/screens/settings_screen.dart';
 import 'package:go_router/go_router.dart';
 

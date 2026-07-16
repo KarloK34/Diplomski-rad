@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gait_sense/blocs/sessions_list/sessions_list_cubit.dart';
 import 'package:gait_sense/models/session_summary_record.dart';
 import 'package:gait_sense/theme/theme_context.dart';
+import 'package:gait_sense/utils/sessions_filter.dart';
 import 'package:gait_sense/widgets/cards/chart_card.dart';
 import 'package:gait_sense/widgets/charts/activity_comparison_chart.dart';
 import 'package:gait_sense/widgets/charts/metric_trend_chart.dart';
@@ -9,37 +12,44 @@ import 'package:gait_sense/widgets/charts/metric_trend_chart.dart';
 /// trends over time, plus an activity-mix comparison of recent sessions.
 ///
 /// Each chart appears only once it has enough data; with too few sessions a
-/// short hint is shown instead.
+/// short hint is shown instead. Scoped by the same period/activity filters
+/// the sessions history list above it uses, via the shared
+/// [SessionsListCubit] — one set of page-level filters drives both instead
+/// of a separate lookback selector.
 class SessionsTrends extends StatelessWidget {
   /// Creates the trends section for [sessions] (newest first).
   const SessionsTrends({required this.sessions, super.key});
 
-  /// Sessions to derive trends from, newest first (as the cubit emits them).
+  /// The full, unfiltered session history, newest first (as the cubit emits
+  /// it).
   final List<SessionSummaryRecord> sessions;
-
-  static const int _maxComparisonBars = 8;
 
   @override
   Widget build(BuildContext context) {
     final spacing = context.spacing;
     final colors = context.gaitColors;
     final chronological = sessions.reversed.toList();
+    final hasHistory = chronological.length >= 2;
+
+    final listState = context.watch<SessionsListCubit>().state;
+    final scoped = filterSessions(
+      chronological,
+      period: listState.period,
+      activity: listState.activity,
+    );
 
     final cadencePoints = [
-      for (final session in chronological)
+      for (final session in scoped)
         if (session.quality.gaitCadence.averageCadenceStepsPerMinute
             case final cadence?)
           MetricTrendPoint(time: session.startedAt, value: cadence),
     ];
     final speedPoints = [
-      for (final session in chronological)
+      for (final session in scoped)
         if (session.quality.gaitWalkingSpeed.averageWalkingSpeedMs
             case final speed?)
           MetricTrendPoint(time: session.startedAt, value: speed),
     ];
-    final comparison = chronological.length > _maxComparisonBars
-        ? chronological.sublist(chronological.length - _maxComparisonBars)
-        : chronological;
 
     final cards = <Widget>[
       if (cadencePoints.length >= 2)
@@ -62,11 +72,11 @@ class SessionsTrends extends StatelessWidget {
             formatValue: (value) => value.toStringAsFixed(1),
           ),
         ),
-      if (comparison.length >= 2)
+      if (scoped.length >= 2)
         ChartCard(
           title: 'Usporedba aktivnosti',
-          subtitle: 'Udio aktivnosti u zadnjim sesijama',
-          child: ActivityComparisonChart(sessions: comparison),
+          subtitle: 'Udio aktivnosti u odabranim sesijama',
+          child: ActivityComparisonChart(sessions: scoped),
         ),
     ];
 
@@ -75,9 +85,16 @@ class SessionsTrends extends StatelessWidget {
       children: [
         Text('Trendovi', style: context.textStyles.titleLarge),
         SizedBox(height: spacing.md),
-        if (cards.isEmpty)
+        if (!hasHistory)
           Text(
             'Trendovi će se prikazati nakon više spremljenih sesija.',
+            style: context.textStyles.bodyMedium?.copyWith(
+              color: context.colors.onSurfaceVariant,
+            ),
+          )
+        else if (cards.isEmpty)
+          Text(
+            'Nema sesija za odabrani filtar.',
             style: context.textStyles.bodyMedium?.copyWith(
               color: context.colors.onSurfaceVariant,
             ),
