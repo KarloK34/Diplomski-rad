@@ -8,7 +8,6 @@ import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/har_model_info.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
-import 'package:gait_sense/repositories/session_summary_repository.dart';
 import 'package:gait_sense/services/latency_tracker.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/services/sensor_readiness_probe.dart';
@@ -27,7 +26,6 @@ class RecordingSessionBloc
   RecordingSessionBloc({
     required RecordingController controller,
     required SessionLogRepository repository,
-    SessionSummaryRepository? summaryRepository,
     Map<String, dynamic> modelInfo = harModelInfo,
     DateTime Function() now = DateTime.now,
     Duration tickInterval = const Duration(seconds: 1),
@@ -36,7 +34,6 @@ class RecordingSessionBloc
   }) : this._(
          controller,
          repository,
-         summaryRepository,
          modelInfo,
          now,
          tickInterval,
@@ -47,7 +44,6 @@ class RecordingSessionBloc
   RecordingSessionBloc._(
     this._controller,
     this._repository,
-    this._summaryRepository,
     this._modelInfo,
     this._now,
     this._tickInterval,
@@ -66,7 +62,6 @@ class RecordingSessionBloc
 
   final RecordingController _controller;
   final SessionLogRepository _repository;
-  final SessionSummaryRepository? _summaryRepository;
   final Map<String, dynamic> _modelInfo;
   final DateTime Function() _now;
   final Duration _tickInterval;
@@ -248,24 +243,23 @@ class RecordingSessionBloc
     await _sampleSubscription?.cancel();
     _sampleSubscription = null;
 
-    await _repository.finishAndSave(stoppedAt: _now());
-    final savedSession = _repository.lastSession;
-    // Fire-and-forget: local save is the offline-safe path and must not block
-    // on network. Firestore retries queued offline writes itself, so a
-    // logged error here means the sync failed for another reason.
-    if (savedSession != null) {
-      unawaited(
-        _summaryRepository
-            ?.syncSession(savedSession)
-            .catchError(
-              (Object error) => debugPrint('Session sync failed: $error'),
-            ),
+    // The summary screen still gates local-file + cloud-summary persistence
+    // behind an explicit save (or an explicit discard on back navigation) —
+    // but the finished session is written to a recoverable draft immediately
+    // so an app kill in between doesn't silently lose it. See
+    // SessionLogRepository.savePendingDraft.
+    final finishedSession = _repository.finish(stoppedAt: _now());
+    try {
+      await _repository.savePendingDraft(finishedSession);
+    } on Object catch (error, stackTrace) {
+      debugPrint(
+        'Failed to persist pending session draft: $error\n$stackTrace',
       );
     }
     emit(
       state.copyWith(
         status: RecordingStatus.saved,
-        finishedSession: savedSession,
+        finishedSession: finishedSession,
         stoppedByLimit: stoppedByLimit,
       ),
     );

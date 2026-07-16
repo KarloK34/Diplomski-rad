@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
+import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/navigation/app_navigator_keys.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
 import 'package:gait_sense/screens/debug_sensors/debug_sensors_screen.dart';
@@ -8,6 +9,7 @@ import 'package:gait_sense/screens/home_screen.dart';
 import 'package:gait_sense/screens/live_har/live_har_screen.dart';
 import 'package:gait_sense/screens/live_har/recording_instructions_screen.dart';
 import 'package:gait_sense/screens/profile_screen.dart';
+import 'package:gait_sense/screens/session_detail/session_detail_screen.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:gait_sense/screens/sessions_screen.dart';
 import 'package:gait_sense/screens/settings_screen.dart';
@@ -65,6 +67,15 @@ StatefulShellBranch _recordBranch() => StatefulShellBranch(
           },
         ),
         GoRoute(
+          path: AppRoutes.recordRecoveredSummarySegment,
+          name: AppSubRoute.recordRecoveredSummary.name,
+          parentNavigatorKey: rootNavigatorKey,
+          redirect: (context, state) =>
+              state.extra is SessionLog ? null : AppRoutes.record,
+          builder: (context, state) =>
+              SessionSummaryScreen(session: state.extra! as SessionLog),
+        ),
+        GoRoute(
           path: AppRoutes.recordDebugSensorsSegment,
           name: AppSubRoute.recordDebugSensors.name,
           parentNavigatorKey: rootNavigatorKey,
@@ -94,6 +105,16 @@ StatefulShellBranch _sessionsBranch() => StatefulShellBranch(
       path: AppRoutes.sessions,
       name: AppTab.sessions.name,
       builder: (context, state) => const SessionsScreen(),
+      routes: [
+        GoRoute(
+          path: AppRoutes.sessionDetailSegment,
+          name: AppSubRoute.sessionDetail.name,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => SessionDetailScreen(
+            sessionId: state.pathParameters['sessionId']!,
+          ),
+        ),
+      ],
     ),
   ],
 );

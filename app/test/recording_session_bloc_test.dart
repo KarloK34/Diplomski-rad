@@ -328,8 +328,29 @@ void main() {
     expect(state.finishedSession, isNotNull);
     expect(state.finishedSession!.predictions, hasLength(1));
     expect(state.finishedSession!.rawSamples, hasLength(1));
-    expect(repository.lastSession, isNotNull);
   });
+
+  test(
+    'stop writes a recoverable pending draft before emitting saved, so an '
+    'app kill before the user saves does not lose the session',
+    () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      await startRecording(bloc);
+      controller.emit(prediction('sit', latencyMs: 3));
+      await bloc.stream.firstWhere((s) => s.predictionCount == 1);
+
+      bloc.add(const RecordingSessionStopped());
+      final state = await bloc.stream.firstWhere(
+        (s) => s.status == RecordingStatus.saved,
+      );
+
+      final drafts = await repository.listPendingDrafts();
+      expect(drafts, hasLength(1));
+      expect(drafts.single, state.finishedSession);
+    },
+  );
 
   test(
     'stop logs late prediction without updating live prediction count',

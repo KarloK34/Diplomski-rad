@@ -131,9 +131,10 @@ void main() {
       expect(repo.count, 2);
       expect(repo.sampleCount, 2);
 
-      final file = await repo.finishAndSave(
+      final session = repo.finish(
         stoppedAt: DateTime.utc(2026, 1, 1, 12, 35),
       );
+      final file = await repo.saveToDisk(session);
 
       expect(file.existsSync(), isTrue);
       // Colons sanitized to `-` in the filename.
@@ -147,17 +148,108 @@ void main() {
       expect(reloaded.rawSamples.first, sample(20));
       expect(reloaded.predictions.first.label, 'wlk');
       expect(reloaded.stoppedAt, DateTime.utc(2026, 1, 1, 12, 35));
-      expect(repo.lastSession, isNotNull);
     });
 
-    test('finishAndSave before startSession throws StateError', () {
+    test('finish before startSession throws StateError', () {
       final repo = SessionLogRepository(
         documentsDirectory: () async => Directory.systemTemp,
       );
       expect(
-        () => repo.finishAndSave(stoppedAt: DateTime.utc(2026)),
+        () => repo.finish(stoppedAt: DateTime.utc(2026)),
         throwsStateError,
       );
     });
+  });
+
+  group('SessionLogRepository pending drafts', () {
+    late Directory tempDir;
+    late SessionLogRepository repo;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('gait_sense_pending_test');
+      repo = SessionLogRepository(documentsDirectory: () async => tempDir);
+    });
+
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    SessionLog session(DateTime startedAt) {
+      return SessionLog(
+        startedAt: startedAt,
+        stoppedAt: startedAt.add(const Duration(seconds: 10)),
+        modelInfo: const {
+          'class_labels': ['wlk', 'sit'],
+        },
+        rawSamples: [sample(20)],
+        predictions: [prediction('wlk', 1)],
+      );
+    }
+
+    test(
+      'savePendingDraft writes a parseable file with no leftover .tmp',
+      () async {
+        final log = session(DateTime.utc(2026, 1, 1, 12, 30, 45));
+        final file = await repo.savePendingDraft(log);
+
+        expect(file.existsSync(), isTrue);
+        expect(file.path, isNot(endsWith('.tmp')));
+        expect(File('${file.path}.tmp').existsSync(), isFalse);
+
+        final reloaded = SessionLog.fromJson(
+          jsonDecode(file.readAsStringSync()) as Map<String, dynamic>,
+        );
+        expect(reloaded, log);
+      },
+    );
+
+    test(
+      'listPendingDrafts recovers every draft written by savePendingDraft',
+      () async {
+        final first = session(DateTime.utc(2026));
+        final second = session(DateTime.utc(2026, 1, 2));
+        await repo.savePendingDraft(first);
+        await repo.savePendingDraft(second);
+
+        final drafts = await repo.listPendingDrafts();
+
+        expect(drafts, unorderedEquals([first, second]));
+      },
+    );
+
+    test(
+      'listPendingDrafts deletes a draft that fails to parse instead of '
+      'surfacing it',
+      () async {
+        final pendingDir = Directory('${tempDir.path}/sessions/pending')
+          ..createSync(recursive: true);
+        final corrupt = File('${pendingDir.path}/session_corrupt.json')
+          ..writeAsStringSync('{"startedAt": "not valid json'); // truncated
+
+        final drafts = await repo.listPendingDrafts();
+
+        expect(drafts, isEmpty);
+        expect(corrupt.existsSync(), isFalse);
+      },
+    );
+
+    test('deletePendingDraft removes the matching draft', () async {
+      final log = session(DateTime.utc(2026));
+      final file = await repo.savePendingDraft(log);
+
+      await repo.deletePendingDraft(log);
+
+      expect(file.existsSync(), isFalse);
+    });
+
+    test('deletePendingDraft is a no-op when no draft exists', () async {
+      final log = session(DateTime.utc(2026));
+      await expectLater(repo.deletePendingDraft(log), completes);
+    });
+
+    test(
+      'listPendingDrafts returns an empty list before any draft exists',
+      () async {
+        expect(await repo.listPendingDrafts(), isEmpty);
+      },
+    );
   });
 }

@@ -8,8 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/blocs/auth/auth_cubit.dart';
 import 'package:gait_sense/blocs/onboarding/onboarding_cubit.dart';
 import 'package:gait_sense/blocs/onboarding/onboarding_state.dart';
+import 'package:gait_sense/blocs/pending_sessions/pending_sessions_cubit.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_state.dart';
+import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/navigation/app_router.dart';
@@ -17,6 +19,7 @@ import 'package:gait_sense/navigation/go_router_refresh_stream.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/onboarding_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
+import 'package:gait_sense/repositories/session_repository.dart';
 import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
@@ -111,6 +114,14 @@ void main() {
       );
       addTearDown(recordingSessionBloc.close);
 
+      // Bind is never called (no gate), so it stays empty and never touches
+      // Firebase — enough for the Home tab to build during navigation.
+      final sessionRepository = SessionRepository();
+      final sessionsCubit = SessionsCubit(repository: sessionRepository);
+      addTearDown(sessionsCubit.close);
+      final pendingSessionsCubit = PendingSessionsCubit(repository: repository);
+      addTearDown(pendingSessionsCubit.close);
+
       final authCubit = AuthCubit(authRepository: _FakeAuthRepository());
       addTearDown(authCubit.close);
       final onboardingCubit = OnboardingCubit(
@@ -142,11 +153,18 @@ void main() {
               value: UserProfileRepository(),
             ),
             RepositoryProvider<SessionLogRepository>.value(value: repository),
+            RepositoryProvider<SessionRepository>.value(
+              value: sessionRepository,
+            ),
           ],
           child: MultiBlocProvider(
             providers: [
               BlocProvider<RecordingSessionBloc>.value(
                 value: recordingSessionBloc,
+              ),
+              BlocProvider<SessionsCubit>.value(value: sessionsCubit),
+              BlocProvider<PendingSessionsCubit>.value(
+                value: pendingSessionsCubit,
               ),
             ],
             child: MaterialApp.router(
@@ -170,17 +188,15 @@ void main() {
       // that triggers navigation.
       final startedAt = DateTime.utc(2026);
       repository.startSession(startedAt: startedAt, modelInfo: const {});
-      // Real file I/O — needs runAsync to actually complete under the
-      // widget tester's fake clock (same reason compute() does).
-      await tester.runAsync(
-        () => repository.finishAndSave(
-          stoppedAt: startedAt.add(const Duration(seconds: 10)),
-        ),
+      // Stopping now only builds the session in memory (no file I/O until the
+      // user saves), mirroring what `_stopSession` leaves behind.
+      final finished = repository.finish(
+        stoppedAt: startedAt.add(const Duration(seconds: 10)),
       );
       recordingSessionBloc.emit(
         const RecordingSessionState.initial().copyWith(
           status: RecordingStatus.saved,
-          finishedSession: repository.lastSession,
+          finishedSession: finished,
         ),
       );
 

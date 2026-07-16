@@ -13,7 +13,8 @@ class RecordingPlacementCopy {
 
   /// Body text explaining phone placement and the start countdown.
   static const String description =
-      'Mobitel držite uspravno, u prednjem džepu hlača na bedru. Nakon što '
-      'pritisnete Start, imate nekoliko sekundi da ga spremite u džep — '
-      'vibracija javlja kad snimanje stvarno počne.';
+      'Mobitel držite uspravno, u prednjem džepu hlača na bedru. Koristite '
+      'hlače sa što užim džepom kako bi smanjili pomicanje mobitela unutar '
+      'džepa. Nakon što pritisnete Start, imate nekoliko sekundi da ga '
+      'spremite u džep — vibracija javlja kad snimanje stvarno počne.';
 }

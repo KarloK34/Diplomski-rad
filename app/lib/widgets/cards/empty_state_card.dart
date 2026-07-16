@@ -10,6 +10,7 @@ class EmptyStateCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    this.iconColor,
     this.actionLabel,
     this.actionIcon,
     this.onAction,
@@ -24,6 +25,9 @@ class EmptyStateCard extends StatelessWidget {
 
   /// Supporting description.
   final String message;
+
+  /// Color of the leading icon; defaults to the theme's primary color.
+  final Color? iconColor;
 
   /// Label of the optional call-to-action button.
   final String? actionLabel;
@@ -46,7 +50,7 @@ class EmptyStateCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 36, color: colors.primary),
+          Icon(icon, size: 36, color: iconColor ?? colors.primary),
           SizedBox(height: spacing.md),
           Text(title, style: textStyles.titleMedium),
           SizedBox(height: spacing.xs),

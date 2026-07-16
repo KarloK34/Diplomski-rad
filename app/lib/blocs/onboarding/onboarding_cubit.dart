@@ -37,7 +37,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
 
   /// Marks [uid]'s account as having completed onboarding. Emits optimistic
   /// completion immediately; the Firestore write is queued offline by the
-  /// SDK if disconnected, same as `SessionSummaryRepository.syncSession`.
+  /// SDK if disconnected, same as `SessionRepository.saveSession`.
   Future<void> markCompleted(String uid) async {
     emit(const OnboardingState.completed());
     await _repository.markCompleted(uid);

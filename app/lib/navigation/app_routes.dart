@@ -12,6 +12,17 @@ abstract final class AppRoutes {
   /// Finished-session summary path, nested under the recording tab.
   static const recordSummary = '/record/$recordSummarySegment';
 
+  /// Relative path segment for [recordRecoveredSummary], nested under
+  /// [record]. Only reachable via `context.push` with a recovered
+  /// `SessionLog` passed as `extra` — there is nothing else to deep-link to.
+  static const recordRecoveredSummarySegment = 'recovered-summary';
+
+  /// Recovered-session summary path, nested under the recording tab, for a
+  /// session found on disk that outlived an app kill before it was saved or
+  /// discarded.
+  static const recordRecoveredSummary =
+      '/record/$recordRecoveredSummarySegment';
+
   /// Relative path segment for [recordDebugSensors], nested under [record].
   static const recordDebugSensorsSegment = 'debug-sensors';
 
@@ -35,6 +46,14 @@ abstract final class AppRoutes {
 
   /// Session history and insights tab path.
   static const sessions = '/sessions';
+
+  /// Relative path segment for [sessionDetail], nested under [sessions].
+  static const sessionDetailSegment = ':sessionId';
+
+  /// Detail path for the session identified by [sessionId] (its ISO-8601 start
+  /// time). The id is percent-encoded since it contains `:` and `.`.
+  static String sessionDetail(String sessionId) =>
+      '/sessions/${Uri.encodeComponent(sessionId)}';
 
   /// Profile tab path.
   static const profile = '/profile';
@@ -76,6 +95,9 @@ enum AppSubRoute {
   /// Finished-session summary, nested under [AppTab.record].
   recordSummary,
 
+  /// Recovered-session summary, nested under [AppTab.record].
+  recordRecoveredSummary,
+
   /// Debug sensors screen, nested under [AppTab.record].
   recordDebugSensors,
 
@@ -87,4 +109,7 @@ enum AppSubRoute {
 
   /// Settings screen reached from [AppTab.profile].
   profileSettings,
+
+  /// Saved-session detail, nested under [AppTab.sessions].
+  sessionDetail,
 }

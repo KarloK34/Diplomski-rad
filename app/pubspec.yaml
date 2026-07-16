@@ -12,6 +12,7 @@ dependencies:
   equatable: ^2.0.8
   firebase_auth: ^6.5.4
   firebase_core: ^4.11.0
+  fl_chart: ^1.0.0
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
@@ -32,9 +33,11 @@ dependencies:
 #  - flutter_foreground_task keeps the 50 Hz sampler alive with the screen off.
 #  - path_provider resolves the documents directory for session-log JSON export.
 #  - share_plus invokes the OS share sheet to export a session JSON.
+#  - fl_chart draws the session distribution/timeline and cross-session trend
+#    charts on the Home and Sessions tabs.
 #  - firebase_core/firebase_auth/cloud_firestore: account auth, cloud sync of
 #    session summaries (raw IMU samples stay local-only, see
-#    SessionSummaryRepository), and per-account profile fields like height
+#    SessionRepository), and per-account profile fields like height
 #    (see UserProfileRepository).
 #  - google_sign_in 7.x: Google sign-in option on the login/signup screens;
 #    requires google_sign_in_android >=7.2.12 for AGP 9 support.

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
@@ -34,11 +35,6 @@ class SessionLogRepository {
   Map<String, dynamic> _modelInfo = const {};
   final List<ActivityPrediction> _predictions = [];
   final List<SensorSample> _rawSamples = [];
-
-  SessionLog? _lastSession;
-
-  /// The most recently finished session, exposed to the summary screen.
-  SessionLog? get lastSession => _lastSession;
 
   /// Number of predictions buffered in the active session.
   int get count => _predictions.length;
@@ -75,14 +71,17 @@ class SessionLogRepository {
     _rawSamples.add(sample);
   }
 
-  /// Finalizes the session, writes it to
-  /// `<documents>/sessions/session_<timestamp>.json`, and returns the file.
+  /// Finalizes the session from the buffered predictions and raw samples and
+  /// returns it.
+  ///
+  /// Persisting is deferred to [saveToDisk] so the summary screen can offer an
+  /// explicit save (and a back-to-discard).
   ///
   /// Throws [StateError] if called before [startSession].
-  Future<File> finishAndSave({required DateTime stoppedAt}) async {
+  SessionLog finish({required DateTime stoppedAt}) {
     final startedAt = _startedAt;
     if (startedAt == null) {
-      throw StateError('finishAndSave called before startSession');
+      throw StateError('finish called before startSession');
     }
 
     final session = SessionLog(
@@ -93,19 +92,99 @@ class SessionLogRepository {
       rawSamples: List.of(_rawSamples),
       predictions: List.of(_predictions),
     );
-    _lastSession = session;
+    return session;
+  }
 
+  /// Writes [session] to `<documents>/sessions/session_<timestamp>.json` and
+  /// returns the file. Called when the user saves.
+  Future<File> saveToDisk(SessionLog session) async {
     final documents = await _documentsDirectory();
     final sessionsDir = Directory('${documents.path}/sessions');
     if (!sessionsDir.existsSync()) {
       sessionsDir.createSync(recursive: true);
     }
 
-    // Colons are not valid in filenames on every target filesystem, so the
-    // ISO-8601 timestamp is sanitized to `-` before being used as a filename.
-    final stamp = startedAt.toIso8601String().replaceAll(':', '-');
-    final file = File('${sessionsDir.path}/session_$stamp.json');
+    final file = File('${sessionsDir.path}/${_stampFilename(session)}');
     await file.writeAsString(jsonEncode(session.toJson()));
     return file;
+  }
+
+  /// Writes [session] as a recoverable draft under
+  /// `<documents>/sessions/pending/`, before the user has chosen to save or
+  /// discard it — so an app kill between [finish] and that decision leaves
+  /// something on disk to recover on next launch instead of losing the
+  /// session outright.
+  ///
+  /// Written to a temp file and renamed into place: [File.rename] is atomic
+  /// on a given filesystem, so [listPendingDrafts] never trips over a draft
+  /// half-written by a process that died mid-write.
+  Future<File> savePendingDraft(SessionLog session) async {
+    final pendingDir = await _pendingDirectory();
+    final file = File('${pendingDir.path}/${_stampFilename(session)}');
+    final tempFile = File('${file.path}.tmp');
+    await tempFile.writeAsString(jsonEncode(session.toJson()));
+    return tempFile.rename(file.path);
+  }
+
+  /// Deletes the pending draft for [session], if one exists.
+  ///
+  /// Safe to call unconditionally: called both when the user saves (the
+  /// draft is superseded by [saveToDisk]'s output) and when they discard (the
+  /// draft is the only copy, so this is the actual deletion).
+  Future<void> deletePendingDraft(SessionLog session) async {
+    final pendingDir = await _pendingDirectory();
+    final file = File('${pendingDir.path}/${_stampFilename(session)}');
+    if (file.existsSync()) await file.delete();
+  }
+
+  /// Recovers sessions left behind by an app kill between [savePendingDraft]
+  /// and the user's save/discard decision.
+  ///
+  /// A draft that fails to parse has nothing recoverable in it — that can
+  /// only happen if the temp-file rename above never completed — so it's
+  /// deleted rather than surfaced as a broken recovery entry.
+  ///
+  /// Called unconditionally at app startup (see `AppDependencies.init`), so a
+  /// failure to resolve the documents directory itself is swallowed rather
+  /// than thrown — recovery is best-effort and must never block startup.
+  Future<List<SessionLog>> listPendingDrafts() async {
+    final Directory pendingDir;
+    try {
+      pendingDir = await _pendingDirectory();
+    } on Object catch (error) {
+      debugPrint('Could not resolve the pending sessions directory: $error');
+      return const [];
+    }
+    if (!pendingDir.existsSync()) return const [];
+
+    final drafts = <SessionLog>[];
+    for (final entity in pendingDir.listSync()) {
+      if (entity is! File || !entity.path.endsWith('.json')) continue;
+      try {
+        final json = jsonDecode(await entity.readAsString());
+        drafts.add(SessionLog.fromJson(json as Map<String, dynamic>));
+      } on Object catch (error) {
+        debugPrint(
+          'Discarding unrecoverable pending session '
+          '${entity.path}: $error',
+        );
+        await entity.delete();
+      }
+    }
+    return drafts;
+  }
+
+  Future<Directory> _pendingDirectory() async {
+    final documents = await _documentsDirectory();
+    final dir = Directory('${documents.path}/sessions/pending');
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    return dir;
+  }
+
+  // Colons are not valid in filenames on every target filesystem, so the
+  // ISO-8601 timestamp is sanitized to `-` before being used as a filename.
+  String _stampFilename(SessionLog session) {
+    final stamp = session.startedAt.toIso8601String().replaceAll(':', '-');
+    return 'session_$stamp.json';
   }
 }

@@ -26,7 +26,13 @@ class MetricTile extends StatelessWidget {
               color: context.colors.onSurfaceVariant,
             ),
           ),
-          Text(value, style: context.appTextStyles.dataDisplay),
+          // Scale down (never wrap) so multi-word values like "110 kor/min"
+          // stay on one line within the fixed tile height.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value, style: context.appTextStyles.dataDisplay),
+          ),
         ],
       ),
     );

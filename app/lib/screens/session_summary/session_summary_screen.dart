@@ -25,7 +25,8 @@ class SessionSummaryScreen extends StatefulWidget {
 }
 
 class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
-  late final Future<SessionSummaryData> _summaryFuture;
+  late final Future<({SessionSummaryData data, double? heightCm})>
+  _summaryFuture;
 
   Future<SessionSummaryInput> _buildInput() async {
     final prefs = context.read<UserProfileRepository>();
@@ -41,26 +42,30 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
     super.initState();
     // Read the user height (fast local read), then dispatch the heavy
     // computation to a worker isolate — stored so Flutter does not
-    // re-submit it on rebuilds.
-    _summaryFuture = _buildInput().then(
-      (input) => compute(computeSessionSummaryData, input),
-    );
+    // re-submit it on rebuilds. The height is carried alongside the result so
+    // it can be persisted as provenance when the user saves.
+    _summaryFuture = _buildInput().then((input) async {
+      final data = await compute(computeSessionSummaryData, input);
+      return (data: data, heightCm: input.userHeightCm);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<SessionSummaryData>(
+    return FutureBuilder<({SessionSummaryData data, double? heightCm})>(
       future: _summaryFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return SessionSummaryErrorView(error: snapshot.error!);
         }
-        if (!snapshot.hasData) {
+        final result = snapshot.data;
+        if (result == null) {
           return const SessionSummaryLoadingView();
         }
         return SessionSummaryContent(
           session: widget.session,
-          data: snapshot.data!,
+          data: result.data,
+          heightCm: result.heightCm,
         );
       },
     );

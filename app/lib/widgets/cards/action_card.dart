@@ -11,6 +11,7 @@ class ActionCard extends StatelessWidget {
     required this.subtitle,
     required this.actionLabel,
     required this.onPressed,
+    this.iconColor,
     super.key,
   });
 
@@ -29,6 +30,9 @@ class ActionCard extends StatelessWidget {
   /// Called when the action button is pressed.
   final VoidCallback onPressed;
 
+  /// Color of the leading icon; defaults to the theme's primary color.
+  final Color? iconColor;
+
   @override
   Widget build(BuildContext context) {
     final spacing = context.spacing;
@@ -37,7 +41,7 @@ class ActionCard extends StatelessWidget {
     return AppCard(
       child: Row(
         children: [
-          Icon(icon, size: 36, color: colors.primary),
+          Icon(icon, size: 36, color: iconColor ?? colors.primary),
           SizedBox(width: spacing.md),
           Expanded(
             child: Column(

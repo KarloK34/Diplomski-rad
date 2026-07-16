@@ -4,14 +4,17 @@ import 'package:flutter/foundation.dart';
 import 'package:gait_sense/blocs/auth/auth_cubit.dart';
 import 'package:gait_sense/blocs/onboarding/onboarding_cubit.dart';
 import 'package:gait_sense/blocs/onboarding/onboarding_gate.dart';
+import 'package:gait_sense/blocs/pending_sessions/pending_sessions_cubit.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
+import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
+import 'package:gait_sense/blocs/sessions/sessions_gate.dart';
 import 'package:gait_sense/firebase_options.dart';
 import 'package:gait_sense/navigation/app_router.dart';
 import 'package:gait_sense/navigation/go_router_refresh_stream.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/onboarding_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
-import 'package:gait_sense/repositories/session_summary_repository.dart';
+import 'package:gait_sense/repositories/session_repository.dart';
 import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/services/gait_foreground_service.dart';
 import 'package:go_router/go_router.dart';
@@ -34,9 +37,8 @@ class AppDependencies {
   /// Persists per-account profile fields in Firestore.
   final UserProfileRepository userProfileRepository = UserProfileRepository();
 
-  /// Syncs finished session summaries to the signed-in account.
-  final SessionSummaryRepository sessionSummaryRepository =
-      SessionSummaryRepository();
+  /// Reads and writes cloud-synced session summaries for the signed-in account.
+  final SessionRepository sessionRepository = SessionRepository();
 
   /// Persists per-account onboarding completion.
   final OnboardingRepository onboardingRepository = OnboardingRepository();
@@ -56,12 +58,27 @@ class AppDependencies {
   late final RecordingSessionBloc recordingSessionBloc = RecordingSessionBloc(
     controller: service,
     repository: sessionLogRepository,
-    summaryRepository: sessionSummaryRepository,
+  );
+
+  /// Holds the account's saved sessions for the Home and Sessions tabs.
+  late final SessionsCubit sessionsCubit = SessionsCubit(
+    repository: sessionRepository,
+  );
+
+  /// Holds recording sessions recovered from a prior run that never reached
+  /// an explicit save/discard decision.
+  late final PendingSessionsCubit pendingSessionsCubit = PendingSessionsCubit(
+    repository: sessionLogRepository,
   );
 
   late final OnboardingGate _onboardingGate = OnboardingGate(
     authCubit: authCubit,
     onboardingCubit: onboardingCubit,
+  );
+
+  late final SessionsGate _sessionsGate = SessionsGate(
+    authCubit: authCubit,
+    sessionsCubit: sessionsCubit,
   );
 
   /// Notifies go_router's redirect to re-run on auth/onboarding/recording
@@ -84,6 +101,8 @@ class AppDependencies {
   void init() {
     service.init();
     _onboardingGate.start();
+    _sessionsGate.start();
+    unawaited(pendingSessionsCubit.refresh());
   }
 
   // Android's OAuth "Web client" id (google-services.json oauth_client,
@@ -108,9 +127,12 @@ class AppDependencies {
     router.dispose();
     refreshListenable.dispose();
     _onboardingGate.dispose();
+    _sessionsGate.dispose();
     unawaited(authCubit.close());
     unawaited(onboardingCubit.close());
     unawaited(recordingSessionBloc.close());
+    unawaited(sessionsCubit.close());
+    unawaited(pendingSessionsCubit.close());
     service.dispose();
   }
 }

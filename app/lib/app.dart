@@ -3,9 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/app_dependencies.dart';
 import 'package:gait_sense/blocs/auth/auth_cubit.dart';
 import 'package:gait_sense/blocs/onboarding/onboarding_cubit.dart';
+import 'package:gait_sense/blocs/pending_sessions/pending_sessions_cubit.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
+import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
+import 'package:gait_sense/repositories/session_repository.dart';
 import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
 
@@ -53,6 +56,9 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
         RepositoryProvider<SessionLogRepository>.value(
           value: _dependencies.sessionLogRepository,
         ),
+        RepositoryProvider<SessionRepository>.value(
+          value: _dependencies.sessionRepository,
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -62,6 +68,12 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
           ),
           BlocProvider<RecordingSessionBloc>.value(
             value: _dependencies.recordingSessionBloc,
+          ),
+          BlocProvider<SessionsCubit>.value(
+            value: _dependencies.sessionsCubit,
+          ),
+          BlocProvider<PendingSessionsCubit>.value(
+            value: _dependencies.pendingSessionsCubit,
           ),
         ],
         child: MaterialApp.router(
