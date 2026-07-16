@@ -24,6 +24,7 @@ dependencies:
   sensors_plus: ^7.0.0
   share_plus: ^13.1.0
   tflite_flutter: ^0.12.1
+  vibration: ^3.2.0
 
 # Dependency notes:
 #  - sensors_plus 7.x exposes GravitySensorEvent, UserAccelerometerEvent and
@@ -42,6 +43,9 @@ dependencies:
 #  - google_sign_in 7.x: Google sign-in option on the login/signup screens;
 #    requires google_sign_in_android >=7.2.12 for AGP 9 support.
 #  - flutter_svg renders the Google "G" logo asset on GoogleSignInButton.
+#  - vibration drives the device motor to confirm a session actually started
+#    while the phone is pocketed — HapticFeedback's impact ticks are too subtle
+#    to feel through fabric. Requires android.permission.VIBRATE.
 
 dev_dependencies:
   flutter_test:

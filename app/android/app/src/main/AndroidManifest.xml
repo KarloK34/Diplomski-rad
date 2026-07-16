@@ -13,6 +13,9 @@
          sampling through a screen-off session. Required by
          FlutterForegroundTask.requestIgnoreBatteryOptimization(). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Drives the vibration motor to confirm a session started while the phone
+         is pocketed and the screen is off. Required by the vibration plugin. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:label="gait_sense"

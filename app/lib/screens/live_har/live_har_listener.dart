@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_event.dart';
@@ -10,6 +9,7 @@ import 'package:gait_sense/extensions/snackbar_context.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:go_router/go_router.dart';
+import 'package:vibration/vibration.dart';
 
 /// Handles this screen's platform-facing side effects: pushes
 /// [SessionSummaryScreen] and resets [RecordingSessionBloc] back to idle on
@@ -65,10 +65,20 @@ class LiveHarListener extends StatelessWidget {
           listenWhen: (previous, current) =>
               previous.status == RecordingStatus.preparing &&
               current.status == RecordingStatus.recording,
-          listener: (context, state) => unawaited(HapticFeedback.heavyImpact()),
+          listener: (context, state) => unawaited(_confirmStarted()),
         ),
       ],
       child: child,
     );
+  }
+
+  /// Firm double-buzz so session start is unmistakable through a pocket. The
+  /// pattern is [wait, buzz, pause, buzz] in ms; omitting intensities lets the
+  /// motor run at its default amplitude, so no amplitude-control device is
+  /// required. Guarded by [Vibration.hasVibrator] to no-op on emulators and
+  /// motorless devices.
+  Future<void> _confirmStarted() async {
+    if (!await Vibration.hasVibrator()) return;
+    await Vibration.vibrate(pattern: const [0, 400, 150, 400]);
   }
 }
