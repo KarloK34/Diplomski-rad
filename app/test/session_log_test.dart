@@ -159,6 +159,35 @@ void main() {
         throwsStateError,
       );
     });
+
+    test('importFromJson decodes a session exported by toJson', () {
+      final repo = SessionLogRepository(
+        documentsDirectory: () async => Directory.systemTemp,
+      );
+      final log = SessionLog(
+        startedAt: DateTime.utc(2026, 1, 1, 12, 30, 45),
+        stoppedAt: DateTime.utc(2026, 1, 1, 12, 35),
+        modelInfo: const {
+          'class_labels': ['wlk', 'sit'],
+        },
+        rawSamples: [sample(20), sample(40)],
+        predictions: [prediction('wlk', 1), prediction('sit', 2)],
+      );
+
+      final imported = repo.importFromJson(jsonEncode(log.toJson()));
+
+      expect(imported, log);
+    });
+
+    test('importFromJson throws FormatException on malformed JSON', () {
+      final repo = SessionLogRepository(
+        documentsDirectory: () async => Directory.systemTemp,
+      );
+      expect(
+        () => repo.importFromJson('{"startedAt": "not valid json'),
+        throwsFormatException,
+      );
+    });
   });
 
   group('SessionLogRepository pending drafts', () {

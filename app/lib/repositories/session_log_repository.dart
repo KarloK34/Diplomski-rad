@@ -174,6 +174,20 @@ class SessionLogRepository {
     return drafts;
   }
 
+  /// Parses [contents] — the raw text of an exported session JSON file —
+  /// into a [SessionLog].
+  ///
+  /// Used by the debug "import session" flow to load a session recorded
+  /// (and exported via [saveToDisk]'s output or the summary screen's export
+  /// action) on another run or device, without going through [startSession]
+  /// and [finish]. Rethrows [FormatException] from malformed JSON or
+  /// [TypeError] from a shape that doesn't match [SessionLog.fromJson] —
+  /// the caller reports these to the user rather than treating them as
+  /// recoverable.
+  SessionLog importFromJson(String contents) {
+    return SessionLog.fromJson(jsonDecode(contents) as Map<String, dynamic>);
+  }
+
   Future<Directory> _pendingDirectory() async {
     final documents = await _documentsDirectory();
     final dir = Directory('${documents.path}/sessions/pending');

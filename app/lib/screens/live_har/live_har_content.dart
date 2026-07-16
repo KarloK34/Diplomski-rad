@@ -42,6 +42,7 @@ class LiveHarContent extends StatelessWidget {
                         tooltip: 'Debug senzori',
                         onPressed: () => _openDebugScreen(context),
                       ),
+                      const SessionImportAction(),
                       IconButton(
                         icon: const Icon(Icons.info_outline),
                         tooltip: 'Upute',

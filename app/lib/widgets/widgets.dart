@@ -9,6 +9,7 @@ export 'buttons/hold_to_confirm_fab.dart';
 export 'buttons/primary_button.dart';
 export 'buttons/recording_fab.dart';
 export 'buttons/secondary_button.dart';
+export 'buttons/session_import_action.dart';
 export 'cards/action_card.dart';
 export 'cards/app_card.dart';
 export 'cards/chart_card.dart';

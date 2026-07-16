@@ -10,6 +10,7 @@ dependencies:
   cloud_firestore: ^6.6.0
   cupertino_icons: ^1.0.8
   equatable: ^2.0.8
+  file_selector: ^1.1.0
   firebase_auth: ^6.5.4
   firebase_core: ^4.11.0
   fl_chart: ^1.0.0
@@ -46,6 +47,9 @@ dependencies:
 #  - vibration drives the device motor to confirm a session actually started
 #    while the phone is pocketed — HapticFeedback's impact ticks are too subtle
 #    to feel through fabric. Requires android.permission.VIBRATE.
+#  - file_selector backs the debug "import session" action (SessionImportAction)
+#    that loads an exported session JSON from disk. Picked over file_picker,
+#    which pins win32 versions incompatible with share_plus on this project.
 
 dev_dependencies:
   flutter_test:
