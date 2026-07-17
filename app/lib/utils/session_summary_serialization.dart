@@ -1,5 +1,6 @@
 import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
+import 'package:gait_sense/utils/gait_temporal_parameters.dart';
 import 'package:gait_sense/utils/gait_walking_speed.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 

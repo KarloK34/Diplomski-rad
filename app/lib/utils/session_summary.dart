@@ -5,6 +5,7 @@ import 'package:gait_sense/utils/activity_labels.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
+import 'package:gait_sense/utils/gait_temporal_parameters.dart';
 import 'package:gait_sense/utils/gait_walking_speed.dart';
 import 'package:gait_sense/utils/prediction_segment_time.dart';
 

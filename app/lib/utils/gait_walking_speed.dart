@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:gait_sense/models/sensor_sample.dart';
+import 'package:gait_sense/utils/basic_statistics.dart' as stats;
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
 import 'package:gait_sense/utils/sensor_conversion.dart';
@@ -64,6 +66,68 @@ const double kWalkingSpeedLowPassCutoffHz = 3;
 /// displacement estimate.
 const double kMinVerticalAmplitudeG = 1e-4;
 
+/// High-pass cutoff applied to the doubly-integrated vertical position
+/// signal, to bound integration drift.
+///
+/// Zijlstra & Hof (2003), https://doi.org/10.1016/S0966-6362(02)00190-X, use a
+/// fourth-order zero-lag Butterworth high-pass filter at 0.1 Hz for exactly
+/// this purpose. Lee et al. (2024), https://doi.org/10.2196/52166, use the
+/// same order at 0.11 Hz. This implementation follows the Zijlstra & Hof
+/// cutoff.
+const double kVerticalDisplacementHighPassCutoffHz = 0.1;
+
+/// Upper bound (exclusive) of Lee et al.'s short raw-step-length bin.
+///
+/// See [leeStepLengthCorrectionFactor] for the source and rationale.
+const double kLeeShortStepLengthBoundM = 0.5;
+
+/// Upper bound (exclusive) of Lee et al.'s medium raw-step-length bin.
+///
+/// See [leeStepLengthCorrectionFactor] for the source and rationale.
+const double kLeeMediumStepLengthBoundM = 0.8;
+
+/// Correction factor for a raw step-length estimate below
+/// [kLeeShortStepLengthBoundM].
+const double kLeeShortStepCorrectionFactor = 1.37;
+
+/// Correction factor for a raw step-length estimate in
+/// [kLeeShortStepLengthBoundM, kLeeMediumStepLengthBoundM).
+const double kLeeMediumStepCorrectionFactor = 1.02;
+
+/// Correction factor for a raw step-length estimate at or above
+/// [kLeeMediumStepLengthBoundM].
+const double kLeeLongStepCorrectionFactor = 0.74;
+
+/// Empirical correction factor for the raw (uncorrected) inverted-pendulum
+/// step-length estimate, keyed by [rawStepLengthM] itself.
+///
+/// The raw geometric model is not a uniform under- or over-estimator: Lee et
+/// al., "A Novel Approach for Improving Gait Speed Estimation Using a Single
+/// Inertial Measurement Unit Embedded in a Smartphone", JMIR mHealth uHealth,
+/// 2024, https://doi.org/10.2196/52166, validated the same pendulum formula
+/// with the phone in the front pants pocket — matching this app's placement —
+/// against a GAITRite mat, and found a slope ≠ 1 bias: *"the pendulum model
+/// approach to calculating gait speed from a single IMU placed in the pocket
+/// overestimated step length and therefore gait speed if the step length
+/// derived from the GAITRite mat was greater than 0.8 m, yet underestimated
+/// both values if the step length was less than 0.5 m."* Their fix is a
+/// piecewise multiplicative correction fit to 3 raw-step-length ranges
+/// (their Table 1 / Eq. 2): ×1.37 for raw estimates in [0.2, 0.5) m, ×1.02 for
+/// [0.5, 0.8) m, ×0.74 for [0.8, 1.1] m — applied here instead of a single
+/// fixed factor.
+/// A raw estimate outside Lee et al.'s studied [0.2, 1.1] m range falls back
+/// to the nearest bin's factor — an extrapolation beyond what they validated,
+/// not itself literature-backed.
+double leeStepLengthCorrectionFactor(double rawStepLengthM) {
+  if (rawStepLengthM < kLeeShortStepLengthBoundM) {
+    return kLeeShortStepCorrectionFactor;
+  }
+  if (rawStepLengthM < kLeeMediumStepLengthBoundM) {
+    return kLeeMediumStepCorrectionFactor;
+  }
+  return kLeeLongStepCorrectionFactor;
+}
+
 // ---------------------------------------------------------------------------
 // Status enum
 // ---------------------------------------------------------------------------
@@ -86,14 +150,18 @@ enum GaitWalkingSpeedStatus {
 
 /// Step-length and walking-speed estimate for one level-walking segment.
 ///
-/// Motivated by the inverted-pendulum model of Zijlstra & Hof, "Assessment of
+/// Uses the inverted-pendulum model of Zijlstra & Hof, "Assessment of
 /// spatio-temporal gait parameters from trunk accelerations during human
 /// walking", Gait & Posture, 2003,
 /// https://doi.org/10.1016/S0966-6362(02)00190-X, and smartphone-based gait
 /// speed estimation with a single IMU in Lee et al., "A Novel Approach for
 /// Improving Gait Speed Estimation Using a Single Inertial Measurement Unit
 /// Embedded in a Smartphone", JMIR mHealth, 2024,
-/// https://doi.org/10.2196/52166.
+/// https://doi.org/10.2196/52166. Both papers recover the vertical
+/// center-of-mass displacement `h` by doubly integrating the vertical
+/// acceleration and high-pass filtering the resulting position signal to
+/// control drift; see [analyzeGaitWalkingSpeed] for this implementation's
+/// version of that method.
 ///
 /// All values are project-level estimations and are not clinically validated.
 class GaitWalkingSpeedResult extends Equatable {
@@ -199,7 +267,7 @@ GaitWalkingSpeedResult analyzeGaitWalkingSpeed(
   // detection.
   // The RMS is taken after removing the mean so DC bias (imperfect gravity
   // subtraction) does not inflate the estimate.
-  final mean = _mean(verticalFiltered);
+  final mean = stats.mean(verticalFiltered);
   final centred = [for (final v in verticalFiltered) v - mean];
   final rmsAmplitude = _rms(centred);
 
@@ -211,27 +279,61 @@ GaitWalkingSpeedResult analyzeGaitWalkingSpeed(
     );
   }
 
+  // --- Vertical displacement (h) via double integration -----------------
+  // Zijlstra & Hof (2003) and Lee et al. (2024) both recover h — the
+  // peak-to-peak vertical CoM excursion during a step — by doubly
+  // integrating vertical acceleration and high-pass filtering the resulting
+  // position signal to control drift. The centred, low-pass-filtered signal
+  // above is reused here so the integration starts from the same
+  // gravity-corrected, denoised input as the amplitude gate.
+  final sampleInterval = medianSampleInterval(samples);
+  final dtSeconds =
+      sampleInterval.inMicroseconds / Duration.microsecondsPerSecond;
+
+  final verticalAccelerationMs2 = [
+    for (final v in centred) v * kStandardGravity,
+  ];
+  final velocityMs = _cumulativeTrapezoidalIntegral(
+    verticalAccelerationMs2,
+    dtSeconds,
+  );
+  // A single numerically-integrated sinusoid does not average to zero
+  // velocity (the zero initial condition pins the *value*, not the mean),
+  // so a residual DC term otherwise integrates into an unbounded linear
+  // drift in position. Removing the velocity-stage mean bounds that before
+  // the position-stage filter below runs. This intermediate step is a
+  // project addition needed for numerical stability, not part of the cited
+  // method.
+  final velocityCentred = _removeMean(velocityMs);
+  final positionM = _cumulativeTrapezoidalIntegral(velocityCentred, dtSeconds);
+  final positionFiltered = filterZeroPhaseHighPassButterworth(
+    samples,
+    positionM,
+    cutoffHz: kVerticalDisplacementHighPassCutoffHz,
+  );
+
+  final stepIndices = _localStepIndices(
+    samples,
+    cadenceResult.detectedStepOffsets,
+  );
+  final stepHeightsM = _perStepPeakToPeak(positionFiltered, stepIndices);
+  if (stepHeightsM.isEmpty) {
+    return _notComputed(
+      verticalAmplitudeG: rmsAmplitude,
+      legLengthM: legLengthM,
+      reason: insufficientVerticalAmplitudeReason,
+    );
+  }
+  // The segment yields one h per step-to-step interval; the median is used
+  // to summarise them into the single h the inverted-pendulum formula below
+  // expects. Aggregating multiple steps this way is a project display
+  // choice, not specified by Zijlstra & Hof or Lee.
+  final hM = stats.median(stepHeightsM);
+
   // --- Inverted-pendulum step length -----------------------------------
-  // Convert amplitude from g to metres, then apply the Zijlstra & Hof
-  // geometric formula:
+  // Zijlstra & Hof geometric formula:
   //   step_length = 2 × √(2 × l × h − h²)
   // where l is leg length and h is the vertical CoM displacement per step.
-  //
-  // h is approximated from the signal amplitude and the step angular
-  // frequency using the simple harmonic oscillator relationship:
-  //   h ≈ A / ω²
-  // where A is amplitude in m/s² and ω = 2π × f_step [rad/s].
-  // f_step = cadence_spm / 60 / 2 because cadence counts individual steps
-  // while the CoM oscillates once per two steps (one full gait cycle).
-  //
-  // This is a project approximation motivated by Lee et al. (2024), not a
-  // clinically validated reproduction of their full method.
-  final cadenceSpm = cadenceResult.cadenceStepsPerMinute;
-  final fStepHz = cadenceSpm / 60.0 / 2.0; // CoM frequency [Hz]
-  final omega = 2 * pi * fStepHz; // [rad/s]
-  final amplitudeMs2 = rmsAmplitude * kStandardGravity; // convert g → m/s²
-  final hM = amplitudeMs2 / (omega * omega); // vertical displacement [m]
-
   final discriminant = 2 * legLengthM * hM - hM * hM;
   if (discriminant <= 0) {
     return _notComputed(
@@ -241,7 +343,10 @@ GaitWalkingSpeedResult analyzeGaitWalkingSpeed(
     );
   }
 
-  final stepLengthM = 2 * sqrt(discriminant);
+  final cadenceSpm = cadenceResult.cadenceStepsPerMinute;
+  final rawStepLengthM = 2 * sqrt(discriminant);
+  final stepLengthM =
+      rawStepLengthM * leeStepLengthCorrectionFactor(rawStepLengthM);
 
   if (stepLengthM < kMinPlausibleStepLengthM ||
       stepLengthM > kMaxPlausibleStepLengthM) {
@@ -288,14 +393,76 @@ GaitWalkingSpeedResult _notComputed({
   );
 }
 
-double _mean(List<double> values) {
-  if (values.isEmpty) return 0;
-  return values.fold<double>(0, (sum, v) => sum + v) / values.length;
-}
-
 double _rms(List<double> values) {
   if (values.isEmpty) return 0;
   final meanSquare =
       values.fold<double>(0, (sum, v) => sum + v * v) / values.length;
   return sqrt(meanSquare);
+}
+
+/// Cumulative trapezoidal integral, starting at zero.
+List<double> _cumulativeTrapezoidalIntegral(
+  List<double> values,
+  double dtSeconds,
+) {
+  final integral = List<double>.filled(values.length, 0);
+  var accumulator = 0.0;
+  for (var i = 1; i < values.length; i++) {
+    accumulator += (values[i] + values[i - 1]) / 2 * dtSeconds;
+    integral[i] = accumulator;
+  }
+  return integral;
+}
+
+List<double> _removeMean(List<double> values) {
+  final mean = stats.mean(values);
+  return [for (final v in values) v - mean];
+}
+
+/// Maps [stepOffsets] (durations from `samples.first.timestamp`, as produced
+/// by [GaitCadenceResult.detectedStepOffsets] for this same sample list) to
+/// indices into [samples].
+List<int> _localStepIndices(
+  List<SensorSample> samples,
+  List<Duration> stepOffsets,
+) {
+  if (samples.isEmpty || stepOffsets.isEmpty) return const [];
+
+  final firstTimestamp = samples.first.timestamp;
+  final indices = <int>[];
+  var searchIndex = 0;
+  for (final offset in stepOffsets) {
+    final target = firstTimestamp.add(offset);
+    while (searchIndex < samples.length - 1 &&
+        samples[searchIndex].timestamp.isBefore(target)) {
+      searchIndex++;
+    }
+    indices.add(searchIndex);
+  }
+  return indices;
+}
+
+/// Peak-to-peak excursion of [positionM] within each consecutive pair of
+/// [stepIndices], i.e. h per Zijlstra & Hof's "difference between highest and
+/// lowest position during a step cycle".
+List<double> _perStepPeakToPeak(
+  List<double> positionM,
+  List<int> stepIndices,
+) {
+  final heights = <double>[];
+  for (var i = 1; i < stepIndices.length; i++) {
+    final start = stepIndices[i - 1];
+    final end = stepIndices[i];
+    if (end <= start) continue;
+
+    var minPosition = positionM[start];
+    var maxPosition = positionM[start];
+    for (var j = start + 1; j <= end; j++) {
+      final value = positionM[j];
+      if (value < minPosition) minPosition = value;
+      if (value > maxPosition) maxPosition = value;
+    }
+    heights.add(maxPosition - minPosition);
+  }
+  return heights;
 }

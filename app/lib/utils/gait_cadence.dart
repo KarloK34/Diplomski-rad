@@ -2,145 +2,13 @@ import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
+import 'package:gait_sense/utils/basic_statistics.dart' as stats;
+import 'package:gait_sense/utils/butterworth_filter.dart';
+import 'package:gait_sense/utils/gait_cadence_constants.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
 
-/// No samples were provided for cadence estimation.
-const String emptyCadenceSignalReason = 'empty_signal';
-
-/// The sample timestamps are not strictly increasing.
-const String invalidCadenceTimestampsReason = 'invalid_timestamps';
-
-/// The signal is shorter than the app-level cadence gate.
-const String cadenceSignalTooShortReason = 'signal_too_short';
-
-/// Peak picking found fewer steps than the app-level cadence gate.
-const String tooFewCadencePeaksReason = 'too_few_detected_steps';
-
-/// Autocorrelation did not provide enough periodic evidence.
-const String lowCadencePeriodicityReason = 'low_periodicity';
-
-/// Peak-based and period-based cadence estimates differ materially.
-const String cadenceEstimatesDisagreeReason = 'cadence_estimates_disagree';
-
-/// Too few repeated events were available for stronger confidence.
-const String limitedCadenceEvidenceReason = 'limited_cadence_evidence';
-
-/// App-level minimum duration before cadence analysis.
-///
-/// This threshold is a project heuristic and is not a clinically validated
-/// minimum recording length.
-const Duration defaultCadenceMinimumDuration = Duration(seconds: 2);
-
-/// Low-pass cutoff used to retain the step-related signal component.
-///
-/// Susi, Renaudin, and Lachapelle, "Motion Mode Recognition and Step Detection
-/// Algorithms for Mobile Phone Users", Sensors, 2013,
-/// https://doi.org/10.3390/s130201539, use low-pass processing around 3 Hz.
-/// This implementation uses a dependency-free fourth-order Butterworth filter
-/// rather than the 10th-order design in that paper, so the order is a project
-/// adaptation and not a clinically validated design choice.
-const double defaultCadenceLowPassCutoffHz = 3;
-
-/// Lower cadence-search bound used by autocorrelation.
-///
-/// This broad bound is a project heuristic, not a clinically validated limit.
-const double defaultCadenceMinimumStepsPerMinute = 60;
-
-/// Upper cadence-search bound used by autocorrelation.
-///
-/// This broad bound is a project heuristic, not a clinically validated limit.
-const double defaultCadenceMaximumStepsPerMinute = 210;
-
-/// Fraction of the dominant period required between accepted peaks.
-///
-/// This duplicate-peak suppression ratio is a project heuristic. The use of a
-/// signal-derived period follows the periodicity-based cadence premise in Wu
-/// and Urbanek, "Application of de-shape synchrosqueezing to estimate gait
-/// cadence from a single-sensor accelerometer placed in different body
-/// locations", Physiological Measurement, 2023,
-/// https://doi.org/10.1088/1361-6579/accefe.
-const double defaultCadenceMinimumPeakIntervalFraction = 0.75;
-
-/// Adaptive peak threshold multiplier applied to the signal standard deviation.
-///
-/// Adaptive thresholds follow Susi et al. (2013),
-/// https://doi.org/10.3390/s130201539. The value 0.5 is a project heuristic and
-/// is not a clinically validated step-detection threshold.
-const double defaultCadencePeakThresholdStdMultiplier = 0.5;
-
-/// Preferred minimum autocorrelation for periodic evidence.
-///
-/// Values just below this gate can still be reported as low-confidence
-/// estimates when peak evidence is available. That soft-reporting rule is a
-/// project heuristic and is not clinically validated.
-const double defaultCadenceMinimumPeriodicity = 0.2;
-
-/// Fraction of the periodicity gate below which cadence is not reported.
-///
-/// This soft lower bound is a project heuristic: it prevents near-threshold
-/// walking segments from disappearing while still rejecting very weakly
-/// periodic signals.
-const double defaultCadenceReportablePeriodicityFraction = 0.75;
-
-/// Autocorrelation below this value lowers the confidence label.
-///
-/// This quality threshold is a project heuristic and is not clinically
-/// validated.
-const double defaultCadenceModeratePeriodicity = 0.35;
-
-/// Autocorrelation required for the high-confidence label.
-///
-/// This quality threshold is a project heuristic and is not clinically
-/// validated.
-const double defaultCadenceHighPeriodicity = 0.55;
-
-/// Relative disagreement that lowers confidence in the cadence estimate.
-///
-/// This comparison threshold is a project heuristic. Comparing peak and
-/// periodicity estimates addresses the harmonic ambiguity discussed by Wu and
-/// Urbanek (2023), https://doi.org/10.1088/1361-6579/accefe.
-const double defaultCadenceMaximumEstimateDisagreement = 0.15;
-
-/// Agreement threshold for promoting long low-periodicity estimates.
-///
-/// This internal-consistency rule is a project heuristic and is not clinically
-/// validated.
-const double defaultCadenceStrongEstimateAgreement = 0.05;
-
-/// Minimum accepted peaks for the internal-consistency confidence rule.
-///
-/// This count is a project heuristic and is not clinically validated.
-const int defaultCadenceConsistentEstimateMinimumSteps = 12;
-
-/// Lower median-relative interval bound used for temporal variability.
-///
-/// This project quality rule reduces the influence of isolated duplicate peak
-/// detections on temporal descriptors. It is not a clinically validated gait
-/// variability filter.
-const double defaultTemporalIntervalLowerMedianRatio = 0.5;
-
-/// Upper median-relative interval bound used for temporal variability.
-///
-/// This project quality rule reduces the influence of missed peak detections
-/// on temporal descriptors. Zijlstra & Hof (2003),
-/// https://doi.org/10.1016/S0966-6362(02)00190-X, emphasize that temporal gait
-/// parameters depend on correctly identified subsequent gait events; this app
-/// treats the ratio itself as an unvalidated robustness guard.
-const double defaultTemporalIntervalUpperMedianRatio = 1.5;
-
-/// Relative strength required to prefer a shorter autocorrelation maximum.
-///
-/// This harmonic-selection ratio is a project heuristic. Preferring the
-/// shorter of similarly supported periods addresses the harmonic ambiguity
-/// discussed by Wu and Urbanek (2023),
-/// https://doi.org/10.1088/1361-6579/accefe.
-const double defaultCadenceComparablePeriodicityRatio = 0.7;
-
-/// App-level minimum number of detected peaks needed to report cadence.
-///
-/// This threshold is a project heuristic and is not a clinically validated
-/// quality rule.
-const int defaultCadenceMinimumDetectedSteps = 2;
+export 'package:gait_sense/utils/butterworth_filter.dart';
+export 'package:gait_sense/utils/gait_cadence_constants.dart';
 
 /// Quality status for a cadence estimation attempt.
 enum GaitCadenceStatus {
@@ -261,186 +129,6 @@ class GaitCadenceResult extends Equatable {
     confidence,
     confidenceReason,
   ];
-}
-
-/// Temporal gait descriptors derived from accepted step-event timings.
-///
-/// Temporal gait analysis from acceleration signals is motivated by Zijlstra &
-/// Hof, "Assessment of spatio-temporal gait parameters from trunk
-/// accelerations during human walking", Gait & Posture, 2003,
-/// https://doi.org/10.1016/S0966-6362(02)00190-X. The summary statistics here
-/// are project display metrics computed from the app's experimental step
-/// detector; they are not clinically validated.
-class GaitTemporalParameters extends Equatable {
-  /// Creates temporal gait parameters.
-  const GaitTemporalParameters({
-    required this.stepIntervalCount,
-    required this.meanStepTime,
-    required this.medianStepTime,
-    required this.stepTimeStandardDeviation,
-    required this.stepTimeCoefficientOfVariation,
-    required this.minimumStepTime,
-    required this.maximumStepTime,
-    required this.strideIntervalCount,
-    required this.meanStrideTime,
-    required this.strideTimeStandardDeviation,
-    required this.strideTimeCoefficientOfVariation,
-    required this.meanInstantCadenceStepsPerMinute,
-    required this.instantCadenceStandardDeviationStepsPerMinute,
-    required this.instantCadenceCoefficientOfVariation,
-    required this.gaitRegularity,
-  });
-
-  /// Number of consecutive step-to-step intervals used after consistency
-  /// filtering.
-  final int stepIntervalCount;
-
-  /// Mean duration between accepted consecutive steps.
-  final Duration meanStepTime;
-
-  /// Median duration between accepted consecutive steps.
-  final Duration medianStepTime;
-
-  /// Population standard deviation of step-to-step durations.
-  final Duration stepTimeStandardDeviation;
-
-  /// Step-time standard deviation divided by mean step time.
-  ///
-  /// This normalized variability metric is a project display rule and is not
-  /// clinically validated.
-  final double stepTimeCoefficientOfVariation;
-
-  /// Shortest accepted step-to-step interval.
-  final Duration minimumStepTime;
-
-  /// Longest accepted step-to-step interval.
-  final Duration maximumStepTime;
-
-  /// Number of same-side step-event intervals used for stride timing after
-  /// consistency filtering.
-  ///
-  /// With one phone in the pocket the app does not label left/right foot
-  /// contacts. The stride interval is therefore approximated as the interval
-  /// between every second accepted step event, following the stride-cycle
-  /// timing premise in Zijlstra & Hof (2003),
-  /// https://doi.org/10.1016/S0966-6362(02)00190-X.
-  final int strideIntervalCount;
-
-  /// Mean duration between every second accepted step event.
-  final Duration? meanStrideTime;
-
-  /// Population standard deviation of stride-time durations.
-  final Duration? strideTimeStandardDeviation;
-
-  /// Stride-time standard deviation divided by mean stride time.
-  ///
-  /// This normalized variability metric is a project display rule and is not
-  /// clinically validated.
-  final double? strideTimeCoefficientOfVariation;
-
-  /// Mean of per-interval cadence values.
-  final double meanInstantCadenceStepsPerMinute;
-
-  /// Population standard deviation of per-interval cadence values.
-  final double instantCadenceStandardDeviationStepsPerMinute;
-
-  /// Instant-cadence standard deviation divided by mean instant cadence.
-  ///
-  /// This normalized variability metric is a project display rule and is not
-  /// clinically validated.
-  final double instantCadenceCoefficientOfVariation;
-
-  /// Autocorrelation-based regularity score inherited from cadence estimation.
-  ///
-  /// The periodicity-based interpretation follows Wu and Urbanek, "Application
-  /// of de-shape synchrosqueezing to estimate gait cadence from a single-sensor
-  /// accelerometer placed in different body locations", Physiological
-  /// Measurement, 2023, https://doi.org/10.1088/1361-6579/accefe. The app-level
-  /// score should be treated as an experimental signal-quality descriptor.
-  final double? gaitRegularity;
-
-  @override
-  List<Object?> get props => [
-    stepIntervalCount,
-    meanStepTime,
-    medianStepTime,
-    stepTimeStandardDeviation,
-    stepTimeCoefficientOfVariation,
-    minimumStepTime,
-    maximumStepTime,
-    strideIntervalCount,
-    meanStrideTime,
-    strideTimeStandardDeviation,
-    strideTimeCoefficientOfVariation,
-    meanInstantCadenceStepsPerMinute,
-    instantCadenceStandardDeviationStepsPerMinute,
-    instantCadenceCoefficientOfVariation,
-    gaitRegularity,
-  ];
-}
-
-/// Computes temporal gait descriptors from one cadence result.
-///
-/// Intervals are calculated only between consecutive accepted peaks in the
-/// same result. The statistics are app-level descriptors and are not clinically
-/// validated.
-GaitTemporalParameters? computeGaitTemporalParameters(
-  GaitCadenceResult result,
-) {
-  if (!result.isComputed) return null;
-  final intervalUs = _filterTemporalIntervals(
-    _stepIntervalMicroseconds(result.detectedStepOffsets),
-  );
-  final strideIntervalUs = _filterTemporalIntervals(
-    _strideIntervalMicroseconds(result.detectedStepOffsets),
-  );
-  return _temporalParametersFromIntervals(
-    intervalUs,
-    strideIntervalUs: strideIntervalUs,
-    gaitRegularity: result.periodicity,
-  );
-}
-
-/// Aggregates temporal descriptors across multiple cadence results.
-///
-/// Step intervals are pooled within each result, but no artificial interval is
-/// created across gaps between separate gait segments. This aggregation is a
-/// project display rule and is not clinically validated.
-GaitTemporalParameters? summarizeGaitTemporalParameters(
-  List<GaitCadenceResult> results,
-) {
-  final intervalUs = <int>[];
-  final strideIntervalUs = <int>[];
-  var weightedRegularity = 0.0;
-  var regularityWeight = 0;
-
-  for (final result in results) {
-    if (!result.isComputed) continue;
-    final resultIntervals = _stepIntervalMicroseconds(
-      result.detectedStepOffsets,
-    );
-    final filteredResultIntervals = _filterTemporalIntervals(resultIntervals);
-    intervalUs.addAll(filteredResultIntervals);
-    strideIntervalUs.addAll(
-      _filterTemporalIntervals(
-        _strideIntervalMicroseconds(result.detectedStepOffsets),
-      ),
-    );
-
-    final periodicity = result.periodicity;
-    if (periodicity != null && filteredResultIntervals.isNotEmpty) {
-      weightedRegularity += periodicity * filteredResultIntervals.length;
-      regularityWeight += filteredResultIntervals.length;
-    }
-  }
-
-  return _temporalParametersFromIntervals(
-    intervalUs,
-    strideIntervalUs: strideIntervalUs,
-    gaitRegularity: regularityWeight == 0
-        ? null
-        : weightedRegularity / regularityWeight,
-  );
 }
 
 /// Estimates step count and cadence from `segment.samples`.
@@ -564,7 +252,7 @@ GaitCadenceResult analyzeGaitCadenceSamples(
     );
   }
 
-  final medianSampleInterval = _medianSampleInterval(samples);
+  final sampleInterval = medianSampleInterval(samples);
   final reportablePeriodicity =
       minimumPeriodicity * defaultCadenceReportablePeriodicityFraction;
   final candidates = [
@@ -573,7 +261,7 @@ GaitCadenceResult analyzeGaitCadenceSamples(
       signal: _CadenceSignal.userAccelerationMagnitude,
       sampleIndexOffset: sampleIndexOffset,
       duration: duration,
-      medianSampleInterval: medianSampleInterval,
+      medianSampleInterval: sampleInterval,
       lowPassCutoffHz: lowPassCutoffHz,
       minimumCadenceStepsPerMinute: minimumCadenceStepsPerMinute,
       maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
@@ -589,7 +277,7 @@ GaitCadenceResult analyzeGaitCadenceSamples(
       signal: _CadenceSignal.angularVelocityMagnitude,
       sampleIndexOffset: sampleIndexOffset,
       duration: duration,
-      medianSampleInterval: medianSampleInterval,
+      medianSampleInterval: sampleInterval,
       lowPassCutoffHz: lowPassCutoffHz,
       minimumCadenceStepsPerMinute: minimumCadenceStepsPerMinute,
       maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
@@ -629,8 +317,8 @@ _CadenceCandidate _analyzeCadenceSignal(
     magnitudes,
     cutoffHz: lowPassCutoffHz,
   );
-  final filteredMean = _mean(filtered);
-  final filteredStd = _standardDeviation(filtered, filteredMean);
+  final filteredMean = stats.mean(filtered);
+  final filteredStd = stats.standardDeviation(filtered, filteredMean);
   final threshold = filteredMean + filteredStd * peakThresholdStdMultiplier;
 
   if (filteredStd <= 1e-9) {
@@ -861,126 +549,6 @@ GaitCadenceResult _notComputed({
   );
 }
 
-List<int> _stepIntervalMicroseconds(List<Duration> stepOffsets) {
-  final intervalUs = <int>[];
-  for (var i = 1; i < stepOffsets.length; i++) {
-    final interval = stepOffsets[i] - stepOffsets[i - 1];
-    if (interval > Duration.zero) {
-      intervalUs.add(interval.inMicroseconds);
-    }
-  }
-  return intervalUs;
-}
-
-List<int> _strideIntervalMicroseconds(List<Duration> stepOffsets) {
-  final intervalUs = <int>[];
-  for (var i = 2; i < stepOffsets.length; i++) {
-    final interval = stepOffsets[i] - stepOffsets[i - 2];
-    if (interval > Duration.zero) {
-      intervalUs.add(interval.inMicroseconds);
-    }
-  }
-  return intervalUs;
-}
-
-List<int> _filterTemporalIntervals(List<int> intervalUs) {
-  if (intervalUs.length < 5) return intervalUs;
-
-  final intervalValues = [
-    for (final interval in intervalUs) interval.toDouble(),
-  ];
-  final medianUs = _medianNumeric(intervalValues);
-  if (medianUs <= 0) return intervalUs;
-
-  final lower = medianUs * defaultTemporalIntervalLowerMedianRatio;
-  final upper = medianUs * defaultTemporalIntervalUpperMedianRatio;
-  final filtered = [
-    for (final interval in intervalUs)
-      if (interval > lower && interval < upper) interval,
-  ];
-
-  if (filtered.length < (intervalUs.length / 2).ceil()) {
-    return intervalUs;
-  }
-  return filtered;
-}
-
-GaitTemporalParameters? _temporalParametersFromIntervals(
-  List<int> intervalUs, {
-  required List<int> strideIntervalUs,
-  required double? gaitRegularity,
-}) {
-  if (intervalUs.isEmpty) return null;
-
-  final stepStats = _intervalStatistics(intervalUs);
-  if (stepStats == null) return null;
-  final strideStats = _intervalStatistics(strideIntervalUs);
-
-  final instantCadenceValues = [
-    for (final interval in intervalUs)
-      Duration.microsecondsPerMinute / interval,
-  ];
-  final meanInstantCadence = _mean(instantCadenceValues);
-  final instantCadenceStd = _standardDeviation(
-    instantCadenceValues,
-    meanInstantCadence,
-  );
-
-  return GaitTemporalParameters(
-    stepIntervalCount: intervalUs.length,
-    meanStepTime: stepStats.mean,
-    medianStepTime: stepStats.median,
-    stepTimeStandardDeviation: stepStats.standardDeviation,
-    stepTimeCoefficientOfVariation: stepStats.coefficientOfVariation,
-    minimumStepTime: stepStats.minimum,
-    maximumStepTime: stepStats.maximum,
-    strideIntervalCount: strideIntervalUs.length,
-    meanStrideTime: strideStats?.mean,
-    strideTimeStandardDeviation: strideStats?.standardDeviation,
-    strideTimeCoefficientOfVariation: strideStats?.coefficientOfVariation,
-    meanInstantCadenceStepsPerMinute: meanInstantCadence,
-    instantCadenceStandardDeviationStepsPerMinute: instantCadenceStd,
-    instantCadenceCoefficientOfVariation: meanInstantCadence <= 0
-        ? 0
-        : instantCadenceStd / meanInstantCadence,
-    gaitRegularity: gaitRegularity,
-  );
-}
-
-_IntervalStatistics? _intervalStatistics(List<int> intervalUs) {
-  if (intervalUs.isEmpty) return null;
-  final intervalValues = [
-    for (final interval in intervalUs) interval.toDouble(),
-  ];
-  final meanIntervalUs = _mean(intervalValues);
-  if (meanIntervalUs <= 0) return null;
-
-  final standardDeviationUs = _standardDeviation(
-    intervalValues,
-    meanIntervalUs,
-  );
-  return _IntervalStatistics(
-    mean: _durationFromMicroseconds(meanIntervalUs),
-    median: _durationFromMicroseconds(_medianNumeric(intervalValues)),
-    standardDeviation: _durationFromMicroseconds(standardDeviationUs),
-    coefficientOfVariation: standardDeviationUs / meanIntervalUs,
-    minimum: Duration(microseconds: intervalUs.reduce(math.min)),
-    maximum: Duration(microseconds: intervalUs.reduce(math.max)),
-  );
-}
-
-Duration _durationFromMicroseconds(double microseconds) {
-  return Duration(microseconds: microseconds.round());
-}
-
-double _medianNumeric(List<double> values) {
-  final sorted = List<double>.of(values)..sort();
-  final middle = sorted.length ~/ 2;
-  return sorted.length.isOdd
-      ? sorted[middle]
-      : (sorted[middle - 1] + sorted[middle]) / 2;
-}
-
 bool _hasStrictlyIncreasingTimestamps(List<SensorSample> samples) {
   for (var i = 1; i < samples.length; i++) {
     final delta = samples[i].timestamp.difference(samples[i - 1].timestamp);
@@ -1018,136 +586,6 @@ double _cadenceSignalValue(SensorSample sample, _CadenceSignal signal) {
   };
 }
 
-/// Applies the Butterworth low-pass preprocessing motivated by Susi et al.
-/// (2013), https://doi.org/10.3390/s130201539.
-///
-/// The paper uses a 10th-order Butterworth filter at 3 Hz for step detection.
-/// This app uses a fourth-order second-order-section cascade and a
-/// forward/backward pass as a dependency-free project adaptation. The
-/// Butterworth filter family follows Butterworth, "On the Theory of Filter
-/// Amplifiers", Experimental Wireless & the Wireless Engineer, 1930.
-///
-/// This function is intentionally public so numerical tests and offline
-/// diagnostics can verify the same filter used by [analyzeGaitCadenceSamples].
-/// The filtering approach is motivated by Susi et al. (2013),
-/// https://doi.org/10.3390/s130201539, with the project adaptation described
-/// above.
-List<double> filterCadenceLowPassButterworth(
-  List<SensorSample> samples,
-  List<double> values, {
-  required double cutoffHz,
-}) {
-  assert(
-    samples.length == values.length,
-    'samples and values must have the same length',
-  );
-  if (values.length < 2) return List.of(values);
-
-  final sampleInterval = _medianSampleInterval(samples);
-  if (sampleInterval <= Duration.zero) return List.of(values);
-
-  final sampleRateHz =
-      Duration.microsecondsPerSecond / sampleInterval.inMicroseconds;
-  if (!sampleRateHz.isFinite || sampleRateHz <= 0) return List.of(values);
-
-  final nyquistHz = sampleRateHz / 2;
-  final boundedCutoffHz = math.min(cutoffHz, nyquistHz * 0.95);
-  if (boundedCutoffHz <= 0) return List.of(values);
-
-  final sections = _butterworthFourthOrderLowPassSections(
-    cutoffHz: boundedCutoffHz,
-    sampleRateHz: sampleRateHz,
-  );
-  final forward = _applyBiquadCascade(values, sections);
-  final backwardInput = forward.reversed.toList(growable: false);
-  final backward = _applyBiquadCascade(backwardInput, sections);
-
-  return backward.reversed.toList(growable: false);
-}
-
-List<_BiquadCoefficients> _butterworthFourthOrderLowPassSections({
-  required double cutoffHz,
-  required double sampleRateHz,
-}) {
-  return [
-    _lowPassBiquad(
-      cutoffHz: cutoffHz,
-      sampleRateHz: sampleRateHz,
-      qualityFactor: 0.541196100146197,
-    ),
-    _lowPassBiquad(
-      cutoffHz: cutoffHz,
-      sampleRateHz: sampleRateHz,
-      qualityFactor: 1.3065629648763766,
-    ),
-  ];
-}
-
-_BiquadCoefficients _lowPassBiquad({
-  required double cutoffHz,
-  required double sampleRateHz,
-  required double qualityFactor,
-}) {
-  final omega = 2 * math.pi * cutoffHz / sampleRateHz;
-  final sinOmega = math.sin(omega);
-  final cosOmega = math.cos(omega);
-  final alpha = sinOmega / (2 * qualityFactor);
-  final b0 = (1 - cosOmega) / 2;
-  final b1 = 1 - cosOmega;
-  final b2 = (1 - cosOmega) / 2;
-  final a0 = 1 + alpha;
-  final a1 = -2 * cosOmega;
-  final a2 = 1 - alpha;
-
-  return _BiquadCoefficients(
-    b0: b0 / a0,
-    b1: b1 / a0,
-    b2: b2 / a0,
-    a1: a1 / a0,
-    a2: a2 / a0,
-  );
-}
-
-List<double> _applyBiquadCascade(
-  List<double> values,
-  List<_BiquadCoefficients> sections,
-) {
-  var filtered = List<double>.of(values, growable: false);
-  for (final section in sections) {
-    filtered = _applyBiquad(filtered, section);
-  }
-  return filtered;
-}
-
-List<double> _applyBiquad(
-  List<double> values,
-  _BiquadCoefficients coefficients,
-) {
-  final filtered = List<double>.filled(values.length, 0);
-  var z1 = 0.0;
-  var z2 = 0.0;
-  for (var i = 0; i < values.length; i++) {
-    final input = values[i];
-    final output = coefficients.b0 * input + z1;
-    z1 = coefficients.b1 * input - coefficients.a1 * output + z2;
-    z2 = coefficients.b2 * input - coefficients.a2 * output;
-    filtered[i] = output.isFinite ? output : 0;
-  }
-  return filtered;
-}
-
-Duration _medianSampleInterval(List<SensorSample> samples) {
-  final intervals = [
-    for (var i = 1; i < samples.length; i++)
-      samples[i].timestamp.difference(samples[i - 1].timestamp).inMicroseconds,
-  ]..sort();
-  final middle = intervals.length ~/ 2;
-  final median = intervals.length.isOdd
-      ? intervals[middle]
-      : ((intervals[middle - 1] + intervals[middle]) / 2).round();
-  return Duration(microseconds: median);
-}
-
 Duration _medianPeakInterval(List<SensorSample> samples, List<_Peak> peaks) {
   final intervals = [
     for (var i = 1; i < peaks.length; i++)
@@ -1181,7 +619,7 @@ _PeriodEstimate? _estimateDominantPeriod(
   );
   if (maximumLag <= minimumLag) return null;
 
-  final mean = _mean(values);
+  final mean = stats.mean(values);
   final centered = [for (final value in values) value - mean];
   final correlations = <int, double>{};
   for (var lag = minimumLag; lag <= maximumLag; lag++) {
@@ -1332,21 +770,6 @@ _ConfidenceAssessment _assessConfidence({
   );
 }
 
-double _mean(List<double> values) {
-  if (values.isEmpty) return 0;
-  return values.reduce((a, b) => a + b) / values.length;
-}
-
-double _standardDeviation(List<double> values, double mean) {
-  if (values.isEmpty) return 0;
-  final variance =
-      values
-          .map((value) => math.pow(value - mean, 2).toDouble())
-          .reduce((a, b) => a + b) /
-      values.length;
-  return math.sqrt(variance);
-}
-
 class _PeriodEstimate {
   const _PeriodEstimate({
     required this.period,
@@ -1358,24 +781,6 @@ class _PeriodEstimate {
 
   double get cadenceStepsPerMinute =>
       Duration.microsecondsPerMinute / period.inMicroseconds;
-}
-
-class _IntervalStatistics {
-  const _IntervalStatistics({
-    required this.mean,
-    required this.median,
-    required this.standardDeviation,
-    required this.coefficientOfVariation,
-    required this.minimum,
-    required this.maximum,
-  });
-
-  final Duration mean;
-  final Duration median;
-  final Duration standardDeviation;
-  final double coefficientOfVariation;
-  final Duration minimum;
-  final Duration maximum;
 }
 
 enum _CadenceSignal {
@@ -1401,22 +806,6 @@ class _ConfidenceAssessment {
 
   final GaitCadenceConfidence confidence;
   final String? reason;
-}
-
-class _BiquadCoefficients {
-  const _BiquadCoefficients({
-    required this.b0,
-    required this.b1,
-    required this.b2,
-    required this.a1,
-    required this.a2,
-  });
-
-  final double b0;
-  final double b1;
-  final double b2;
-  final double a1;
-  final double a2;
 }
 
 class _Peak {

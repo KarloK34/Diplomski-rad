@@ -7,6 +7,9 @@ import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
+import 'package:gait_sense/utils/gait_temporal_parameters.dart';
+import 'package:gait_sense/utils/gait_walking_speed.dart'
+    show kVerticalDisplacementHighPassCutoffHz;
 
 void main() {
   final start = DateTime.utc(2026, 1, 1, 12);
@@ -408,6 +411,37 @@ void main() {
     );
 
     expect(maxIndex(output), closeTo(centerIndex, 1));
+  });
+
+  test('zero-phase high-pass preprocessing has the expected response', () {
+    // Uses the production vertical-displacement cutoff (0.1 Hz) so this
+    // characterizes the filter as it is actually applied in
+    // gait_walking_speed.dart to bound double-integration drift (W1,
+    // docs/audit-hodne-metrike.md).
+    const cutoffHz = kVerticalDisplacementHighPassCutoffHz;
+    const sampleCount = 20000; // 400 s at 50 Hz — several cycles at 0.02 Hz.
+    const trim = 2000;
+    final samples = timestampSamples(sampleCount);
+
+    double responseRatio(double frequencyHz) {
+      final input = sineSignal(count: sampleCount, frequencyHz: frequencyHz);
+      final output = filterZeroPhaseHighPassButterworth(
+        samples,
+        input,
+        cutoffHz: cutoffHz,
+      );
+      return trimmedRms(output, trim: trim) / trimmedRms(input, trim: trim);
+    }
+
+    final passbandRatio = responseRatio(0.5);
+    final cutoffRatio = responseRatio(cutoffHz);
+    final stopbandRatio = responseRatio(0.02);
+
+    expect(passbandRatio, closeTo(1, 0.02));
+    expect(cutoffRatio, closeTo(0.5, 0.06));
+    expect(stopbandRatio, lessThan(0.01));
+    expect(passbandRatio, greaterThan(cutoffRatio));
+    expect(cutoffRatio, greaterThan(stopbandRatio));
   });
 
   test(

@@ -21,15 +21,34 @@ class UserProfileRepository {
   FirebaseFirestore get _firestore =>
       _injectedFirestore ?? FirebaseFirestore.instance;
 
+  // In-memory cache, keyed by uid so a sign-out followed by a different
+  // account signing in can't serve a stale height. Height changes rarely, so
+  // every screen that needs it (settings, session summary) reuses this
+  // instead of re-reading Firestore on every open. This repository is
+  // provided once for the app's lifetime (see RepositoryProvider.value in
+  // app.dart), so the cache naturally persists across screens.
+  String? _cachedUid;
+  double? _cachedHeightCm;
+
   /// Returns the signed-in account's stored height in centimetres, or null
   /// if unset, signed out, or the read failed — callers already treat "no
   /// height" as a normal, handled state.
+  ///
+  /// Cached in memory per [FirebaseAuth] uid after the first successful read;
+  /// a failed read (network error, auth not ready yet) is deliberately left
+  /// uncached so the next call retries instead of pinning "no height" for
+  /// the rest of the app's lifetime.
   Future<double?> getHeightCm() async {
     try {
       final uid = _firebaseAuth.currentUser?.uid;
       if (uid == null) return null;
+      if (uid == _cachedUid) return _cachedHeightCm;
+
       final snapshot = await _firestore.collection('users').doc(uid).get();
-      return (snapshot.data()?['heightCm'] as num?)?.toDouble();
+      final heightCm = (snapshot.data()?['heightCm'] as num?)?.toDouble();
+      _cachedUid = uid;
+      _cachedHeightCm = heightCm;
+      return heightCm;
     } on Object {
       return null;
     }
@@ -45,5 +64,7 @@ class UserProfileRepository {
     await _firestore.collection('users').doc(uid).set({
       'heightCm': heightCm,
     }, SetOptions(merge: true));
+    _cachedUid = uid;
+    _cachedHeightCm = heightCm;
   }
 }

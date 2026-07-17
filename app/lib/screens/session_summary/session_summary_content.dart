@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -13,12 +11,11 @@ import 'package:gait_sense/repositories/session_repository.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_computation.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
+import 'package:gait_sense/utils/session_export.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 import 'package:gait_sense/utils/session_summary_format.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 /// Renders the computed session summary: overview header, quality section,
 /// per-class totals, timeline, and the save/export actions.
@@ -234,10 +231,6 @@ class _SessionSummaryContentState extends State<SessionSummaryContent> {
   /// sheet.
   Future<void> _exportSession(BuildContext context) async {
     final session = widget.session;
-    final renderBox = context.findRenderObject() as RenderBox?;
-    final origin = renderBox != null && renderBox.hasSize
-        ? renderBox.localToGlobal(Offset.zero) & renderBox.size
-        : null;
 
     setState(() => _saving = true);
     try {
@@ -250,21 +243,9 @@ class _SessionSummaryContentState extends State<SessionSummaryContent> {
     }
 
     try {
-      final directory = await getTemporaryDirectory();
-      final stamp = session.startedAt.toIso8601String().replaceAll(':', '-');
-      final file = File('${directory.path}/session_$stamp.json');
-      await file.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(session.toJson()),
-      );
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          subject: 'Gait Sense — sesija',
-          text: 'Zapis HAR sesije (${session.predictions.length} predikcija).',
-          sharePositionOrigin: origin,
-        ),
-      );
-    } on Exception catch (error) {
+      if (!context.mounted) return;
+      await shareSessionLog(context, session);
+    } on Object catch (error) {
       if (!context.mounted) return;
       context.showSnackBar('Izvoz nije uspio: $error');
     } finally {

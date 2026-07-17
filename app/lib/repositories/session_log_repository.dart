@@ -234,10 +234,30 @@ class SessionLogRepository {
     return dir;
   }
 
+  /// Loads the full session (including raw IMU samples) previously written
+  /// by [saveToDisk], by its `startedAt` ISO-8601 id — the same id used as
+  /// the Firestore document id (see `SessionSummaryRecord.id`).
+  ///
+  /// Returns null when no local copy exists: the cloud-synced summary a
+  /// session-detail screen shows never carries raw samples (see
+  /// `SessionRepository`'s doc comment), so a session saved on a different
+  /// device, or one whose local file was since removed, has nothing to load
+  /// here even though its summary is still visible.
+  Future<SessionLog?> loadSavedSession(String startedAtIso) async {
+    final documents = await _documentsDirectory();
+    final file = File(
+      '${documents.path}/sessions/${_sessionFilename(startedAtIso)}',
+    );
+    if (!file.existsSync()) return null;
+    final contents = await file.readAsString();
+    return compute(_parseImportedSessionLog, contents);
+  }
+
   // Colons are not valid in filenames on every target filesystem, so the
   // ISO-8601 timestamp is sanitized to `-` before being used as a filename.
-  String _stampFilename(SessionLog session) {
-    final stamp = session.startedAt.toIso8601String().replaceAll(':', '-');
-    return 'session_$stamp.json';
-  }
+  String _stampFilename(SessionLog session) =>
+      _sessionFilename(session.startedAt.toIso8601String());
+
+  String _sessionFilename(String startedAtIso) =>
+      'session_${startedAtIso.replaceAll(':', '-')}.json';
 }

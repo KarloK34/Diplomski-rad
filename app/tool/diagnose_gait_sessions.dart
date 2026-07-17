@@ -2,34 +2,326 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/screens/session_summary/session_summary_computation.dart';
+import 'package:gait_sense/utils/activity_labels.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
+import 'package:gait_sense/utils/gait_quality_format.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
+import 'package:gait_sense/utils/gait_temporal_parameters.dart';
 import 'package:gait_sense/utils/gait_walking_speed.dart';
 import 'package:gait_sense/utils/session_summary.dart';
+import 'package:gait_sense/utils/session_summary_format.dart';
 
+/// Replays one or more exported session JSON files through the exact same
+/// aggregation code the app runs (`computeSessionSummaryData`, the isolate
+/// entry point behind the "Sažetak sesije" screen), so a recorded session can
+/// be reused to check a code change instead of re-recording a walk every time.
+///
+/// Usage:
+///   dart run tool/diagnose_gait_sessions.dart [--height=CM] [--json] JSON...
+///
+/// `--height` supplies the body height (cm) the walking-speed estimate needs;
+/// omit it to see the "no height" behaviour the app shows before a user sets
+/// one in Settings. `--json` prints one machine-readable line per file
+/// instead of the human-readable report, for diffing two runs (e.g. before
+/// and after a code change) with a normal text diff tool.
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {
     stderr.writeln(
-      'Usage: dart run tool/diagnose_gait_sessions.dart <json>...',
+      'Usage: dart run tool/diagnose_gait_sessions.dart '
+      '[--height=<cm>] [--json] <json>...',
     );
     exitCode = 64;
     return;
   }
 
-  for (final path in args) {
+  double? heightCm;
+  var jsonOutput = false;
+  final paths = <String>[];
+  for (final arg in args) {
+    if (arg.startsWith('--height=')) {
+      heightCm = double.tryParse(arg.substring('--height='.length));
+      if (heightCm == null) {
+        stderr.writeln('Could not parse --height value in "$arg".');
+        exitCode = 64;
+        return;
+      }
+    } else if (arg == '--json') {
+      jsonOutput = true;
+    } else {
+      paths.add(arg);
+    }
+  }
+  if (paths.isEmpty) {
+    stderr.writeln('No session JSON file given.');
+    exitCode = 64;
+    return;
+  }
+
+  for (final path in paths) {
     final file = File(path);
     final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
     final session = SessionLog.fromJson(json);
+    // Same call the summary screen makes (session_summary_screen.dart),
+    // minus the `compute()` isolate hop — computeSessionSummaryData itself
+    // has no Flutter dependency, so this is the identical production code
+    // path, not a reimplementation.
+    final data = computeSessionSummaryData(
+      SessionSummaryInput(session: session, userHeightCm: heightCm),
+    );
+
+    if (jsonOutput) {
+      stdout.writeln(
+        jsonEncode(_summaryToJson(file, session, data, heightCm)),
+      );
+      continue;
+    }
 
     stdout
       ..writeln()
       ..writeln('== ${file.uri.pathSegments.last} ==');
+    _printAppSummary(session, data, heightCm);
+    stdout.writeln('-- debug detail --');
     _printSession(session);
-    _printRuns(session);
-    _printGait(session);
+    _printRuns(session, heightCm);
+    _printGait(session, heightCm);
   }
 }
+
+/// Prints the same rows the "Sažetak sesije" screen shows, using the app's own
+/// formatter functions (`gait_quality_format.dart`,
+/// `session_summary_format.dart`) so the text — not just the underlying
+/// numbers — matches what a user would actually see.
+void _printAppSummary(
+  SessionLog session,
+  SessionSummaryData data,
+  double? heightCm,
+) {
+  final quality = data.quality;
+  final cadence = quality.gaitCadence;
+  final speed = quality.gaitWalkingSpeed;
+  final suitableSegments = quality.suitableGaitSegments;
+  final gaitCandidatesLabel = suitableSegments.isEmpty
+      ? 'Nema kandidata'
+      : formatSegmentCountHr(suitableSegments.length);
+
+  stdout
+    ..writeln('-- app summary (Sažetak sesije) --')
+    ..writeln(
+      'started=${formatStartTimestamp(session.startedAt)} '
+      'duration=${formatElapsedClock(sessionDuration(session))} '
+      'predictions=${session.predictions.length} '
+      'heightCm=${heightCm ?? "not set"}',
+    )
+    ..writeln('Udio po aktivnosti:');
+  for (final total in data.totals) {
+    stdout.writeln(
+      '  ${activityLabelHr(total.label)}: ${formatClassTotalValue(total)}',
+    );
+  }
+
+  stdout.writeln('Vremenski slijed:');
+  for (final segment in data.timeline) {
+    stdout.writeln(
+      '  ${activityLabelHr(segment.label)} '
+      '${formatTimelineSegmentTimeRange(segment)} '
+      '(${windowCountLabelHr(segment.windows)})',
+    );
+  }
+
+  stdout
+    ..writeln('Pouzdanost sesije:')
+    ..writeln(
+      '  Raw HAR rezultat: ${formatLabelCounts(quality.rawLabelWindowCounts)}',
+    )
+    ..writeln(
+      '  Smoothed HAR rezultat: '
+      '${formatLabelCounts(quality.effectiveLabelWindowCounts)}',
+    )
+    ..writeln(
+      '  Raw/smoothed promjene: '
+      '${windowCountLabelHr(quality.rawSmoothedChangeCount)} od '
+      '${windowCountLabelHr(quality.predictionCount)}',
+    )
+    ..writeln(
+      '  Promijenjeni prozori: '
+      '${formatPercentHr(quality.rawSmoothedChangeFraction)}',
+    )
+    ..writeln(
+      '  Stabilna lokomocija: '
+      '${quality.hasEnoughStableLocomotion ? "Da" : "Ne"}',
+    )
+    ..writeln(
+      '  Trajanje stabilne lokomocije: '
+      '${formatDurationSecondsHr(quality.stableLocomotionDuration)}',
+    )
+    ..writeln('  Kandidati za analizu hoda: $gaitCandidatesLabel')
+    ..writeln(
+      '  Trajanje stabilnog hodanja po ravnom: '
+      '${formatDurationSecondsHr(quality.levelWalkingGaitDuration)}',
+    )
+    ..writeln('  Kadenca (eksperimentalno): ${formatCadenceHr(cadence)}')
+    ..writeln(
+      '  Detektirani koraci (eksperimentalno): ${formatStepCountHr(cadence)}',
+    );
+
+  if (cadence.hasComputedCadence) {
+    stdout.writeln(
+      '  Pouzdanost procjene: '
+      '${formatCadenceConfidenceHr(cadence.confidence)}',
+    );
+    if (cadence.confidenceReason != null) {
+      stdout.writeln(
+        '  Napomena: '
+        '${formatCadenceConfidenceReasonHr(cadence.confidenceReason)}',
+      );
+    }
+  } else {
+    stdout.writeln(
+      '  Razlog: ${formatCadenceUnavailableReasonHr(cadence.reason)}',
+    );
+  }
+
+  if (cadence.temporalParameters case final temporal?) {
+    stdout
+      ..writeln(
+        '  Prosječno vrijeme koraka (eksperimentalno): '
+        '${formatDurationSecondsHr(temporal.meanStepTime)}',
+      )
+      ..writeln(
+        '  Varijabilnost vremena koraka (eksperimentalno): '
+        '${formatPercentHr(temporal.stepTimeCoefficientOfVariation)}',
+      );
+    if (temporal.meanStrideTime case final strideTime?) {
+      stdout.writeln(
+        '  Prosječno vrijeme iskoraka (eksperimentalno): '
+        '${formatDurationSecondsHr(strideTime)}',
+      );
+    }
+    if (temporal.strideTimeCoefficientOfVariation case final strideCv?) {
+      stdout.writeln(
+        '  Varijabilnost vremena iskoraka (eksperimentalno): '
+        '${formatPercentHr(strideCv)}',
+      );
+    }
+    stdout
+      ..writeln(
+        '  Varijabilnost kadence (eksperimentalno): '
+        '${formatCadenceSpreadHr(
+          temporal.instantCadenceStandardDeviationStepsPerMinute,
+        )}',
+      )
+      ..writeln(
+        '  Regularnost signala (indikator kvalitete): '
+        '${formatGaitRegularityHr(temporal.gaitRegularity)}',
+      );
+  }
+
+  stdout
+    ..writeln('  Brzina hoda (gruba procjena): ${formatWalkingSpeedHr(speed)}')
+    ..writeln(
+      '  Duljina koraka (gruba procjena): ${formatStepLengthHr(speed)}',
+    );
+  if (!speed.hasComputedSpeed) {
+    stdout.writeln(
+      '  Razlog brzine hoda: '
+      '${formatWalkingSpeedUnavailableReasonHr(speed)}',
+    );
+  }
+
+  for (final segment in suitableSegments) {
+    stdout.writeln(
+      '  segment ${formatGaitSegmentTimeRange(segment)} '
+      'windows=${windowCountLabelHr(segment.windows)} '
+      'labels=${formatLabelCounts(segment.labelCounts)}',
+    );
+  }
+  stdout.writeln();
+}
+
+/// Builds a flat, diffable JSON record for one file — run once before a code
+/// change and once after, then diff the two outputs directly.
+Map<String, dynamic> _summaryToJson(
+  File file,
+  SessionLog session,
+  SessionSummaryData data,
+  double? heightCm,
+) {
+  final quality = data.quality;
+  final cadence = quality.gaitCadence;
+  final speed = quality.gaitWalkingSpeed;
+  final temporal = cadence.temporalParameters;
+
+  return {
+    'file': file.uri.pathSegments.last,
+    'startedAt': session.startedAt.toIso8601String(),
+    'durationSeconds': sessionDuration(session).inMilliseconds / 1000,
+    'predictionCount': session.predictions.length,
+    'heightCm': heightCm,
+    'classTotals': [
+      for (final total in data.totals)
+        {
+          'label': total.label,
+          'windows': total.windows,
+          'seconds': total.time.inMilliseconds / 1000,
+          'fraction': total.fraction,
+        },
+    ],
+    'stableLocomotion': {
+      'hasEnough': quality.hasEnoughStableLocomotion,
+      'durationSeconds':
+          quality.stableLocomotionDuration.inMilliseconds / 1000,
+      'windowCount': quality.stableLocomotionWindowCount,
+    },
+    'gaitSegments': {
+      'suitableCount': quality.suitableGaitSegments.length,
+      'levelWalkingDurationSeconds':
+          quality.levelWalkingGaitDuration.inMilliseconds / 1000,
+    },
+    'cadence': {
+      'status': cadence.status.name,
+      'reason': cadence.reason,
+      'confidence': cadence.confidence.name,
+      'confidenceReason': cadence.confidenceReason,
+      'totalStepCount': cadence.totalStepCount,
+      'averageCadenceStepsPerMinute': cadence.averageCadenceStepsPerMinute,
+      'computedResultCount': cadence.computedResultCount,
+      'signalSegmentCount': cadence.signalSegmentCount,
+    },
+    'temporal': temporal == null
+        ? null
+        : {
+            'stepIntervalCount': temporal.stepIntervalCount,
+            'meanStepTimeSeconds': temporal.meanStepTime.inMilliseconds / 1000,
+            'stepTimeCoefficientOfVariation':
+                temporal.stepTimeCoefficientOfVariation,
+            'strideIntervalCount': temporal.strideIntervalCount,
+            'meanStrideTimeSeconds': temporal.meanStrideTime == null
+                ? null
+                : temporal.meanStrideTime!.inMilliseconds / 1000,
+            'strideTimeCoefficientOfVariation':
+                temporal.strideTimeCoefficientOfVariation,
+            'instantCadenceStdStepsPerMinute':
+                temporal.instantCadenceStandardDeviationStepsPerMinute,
+            'gaitRegularity': temporal.gaitRegularity,
+          },
+    'walkingSpeed': {
+      'status': speed.status.name,
+      'reason': speed.reason,
+      'averageWalkingSpeedMs': speed.averageWalkingSpeedMs,
+      'averageStepLengthM': speed.averageStepLengthM,
+      'computedResultCount': speed.computedResultCount,
+      'signalSegmentCount': speed.signalSegmentCount,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Low-level debug detail: per-segment thresholds, offsets, and periodicity —
+// useful when the app-summary numbers above look wrong and the cadence/speed
+// internals need inspecting directly.
+// ---------------------------------------------------------------------------
 
 void _printSession(SessionLog session) {
   final smoothedChanges = session.predictions.where((p) => p.wasSmoothed);
@@ -70,10 +362,10 @@ void _printSession(SessionLog session) {
   }
 }
 
-void _printRuns(SessionLog session) {
+void _printRuns(SessionLog session, double? heightCm) {
   final summary = computeSessionQualitySummary(
     session,
-    userHeightCm: 180,
+    userHeightCm: heightCm,
   );
   stdout.writeln(
     'stableLocomotion segments=${summary.stableLocomotionSegments.length} '
@@ -88,7 +380,7 @@ void _printRuns(SessionLog session) {
   }
 }
 
-void _printGait(SessionLog session) {
+void _printGait(SessionLog session, double? heightCm) {
   final gaitSegments = extractGaitSegments(session);
   final signals = extractGaitSignalSegments(
     session,
@@ -96,7 +388,7 @@ void _printGait(SessionLog session) {
   );
   final summary = computeSessionQualitySummary(
     session,
-    userHeightCm: 180,
+    userHeightCm: heightCm,
   );
 
   final out = stdout
@@ -128,11 +420,13 @@ void _printGait(SessionLog session) {
 
   for (final signal in signals) {
     final cadence = analyzeGaitCadence(signal);
-    final speed = analyzeGaitWalkingSpeed(
-      signal,
-      cadenceResult: cadence,
-      userHeightCm: 180,
-    );
+    final speed = heightCm == null
+        ? null
+        : analyzeGaitWalkingSpeed(
+            signal,
+            cadenceResult: cadence,
+            userHeightCm: heightCm,
+          );
     final offsets = cadence.detectedStepOffsets.map(_duration).join(',');
     final temporal = computeGaitTemporalParameters(cadence);
     out
@@ -153,10 +447,13 @@ void _printGait(SessionLog session) {
         'confidenceReason=${cadence.confidenceReason}',
       )
       ..writeln(
-        '    speed status=${speed.status.name} reason=${speed.reason} '
-        'speed=${_number(speed.walkingSpeedMs)} '
-        'stepLength=${_number(speed.stepLengthM)} '
-        'verticalAmplitude=${_number(speed.verticalAmplitudeG)}',
+        speed == null
+            ? '    speed status=unavailable reason=missing_user_height '
+                  '(pass --height=<cm>)'
+            : '    speed status=${speed.status.name} reason=${speed.reason} '
+                  'speed=${_number(speed.walkingSpeedMs)} '
+                  'stepLength=${_number(speed.stepLengthM)} '
+                  'verticalAmplitude=${_number(speed.verticalAmplitudeG)}',
       )
       ..writeln(_temporalLine(temporal))
       ..writeln('    offsets=$offsets');

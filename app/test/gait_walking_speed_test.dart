@@ -8,6 +8,7 @@ import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
 import 'package:gait_sense/utils/gait_walking_speed.dart';
+import 'package:gait_sense/utils/sensor_conversion.dart';
 
 void main() {
   final start = DateTime.utc(2026, 1, 1, 12);
@@ -236,28 +237,64 @@ void main() {
     });
 
     test('produces a plausible speed for a synthetic 2 Hz walking signal', () {
-      // 2 Hz vertical acceleration with a 120 spm cadence.
-      // For height 175 cm, leg length is about 0.928 m.
-      // At reasonable amplitude the inverted pendulum should yield a step
-      // length in [0.4, 0.9 m] and speed in [0.8, 1.8 m/s].
+      // 2 Hz vertical acceleration with a 120 spm cadence (frequencyHz here is
+      // the step frequency, cadenceSpm / 60 — one CoM oscillation per step,
+      // per Zijlstra & Hof, https://doi.org/10.1016/S0966-6362(02)00190-X).
+      const frequencyHz = 2.0;
+      const amplitudeG = 0.20;
+      const cadenceStepsPerMinute = 120.0;
+      const userHeightCm = 175.0;
+
       final samples = sinusoidalSamples(
         count: 500,
-        frequencyHz: 2,
-        amplitudeG: 0.20,
+        frequencyHz: frequencyHz,
+        amplitudeG: amplitudeG,
       );
       final segment = segmentFromSamples(samples);
 
       final result = analyzeGaitWalkingSpeed(
         segment,
         cadenceResult: computedCadenceResult(),
-        userHeightCm: 175,
+        userHeightCm: userHeightCm,
       );
 
       expect(result.isComputed, isTrue);
-      expect(result.stepLengthM, greaterThan(kMinPlausibleStepLengthM));
-      expect(result.stepLengthM, lessThan(kMaxPlausibleStepLengthM));
-      expect(result.walkingSpeedMs, greaterThan(0.5));
-      expect(result.walkingSpeedMs, lessThan(3.0));
+
+      // Independent ground truth from the underlying physics, not from the
+      // implementation under test: for a clean sinusoidal vertical
+      // acceleration a(t) = amplitudeG*g*sin(2*pi*f*t), the peak-to-peak
+      // vertical displacement is h = 2*a_peak/omega^2 (SHO relationship,
+      // using the peak amplitude and the signal's own angular frequency —
+      // not RMS and not cadence/2).
+      // Measured against this reference, the double-integration
+      // implementation agrees to within ~1-2% for this synthetic signal, so
+      // the 5% tolerance below is tight enough to catch a regression to the
+      // pre-fix RMS/omega-halving/uncorrected formula: reconstructing that
+      // formula from the same measured rmsAmplitude gives a step length only
+      // ~7% away from this expected value (not the much larger miss a naive
+      // dimensional-analysis estimate suggests), which is what this bound is
+      // sized to reject.
+      const legLengthM = userHeightCm / 100.0 * kLegLengthHeightRatio;
+      const omega = 2 * math.pi * frequencyHz;
+      const amplitudeMs2 = amplitudeG * kStandardGravity;
+      const expectedH = 2 * amplitudeMs2 / (omega * omega);
+      const expectedDiscriminant =
+          2 * legLengthM * expectedH - expectedH * expectedH;
+      final expectedRawStepLengthM = 2 * math.sqrt(expectedDiscriminant);
+      final expectedStepLengthM =
+          expectedRawStepLengthM *
+          leeStepLengthCorrectionFactor(expectedRawStepLengthM);
+      final expectedSpeedMs =
+          expectedStepLengthM * cadenceStepsPerMinute / 60.0;
+
+      expect(
+        result.stepLengthM,
+        closeTo(expectedStepLengthM, expectedStepLengthM * 0.05),
+      );
+      expect(
+        result.walkingSpeedMs,
+        closeTo(expectedSpeedMs, expectedSpeedMs * 0.05),
+      );
     });
 
     test('legLengthM is 0.53 times userHeightCm / 100', () {
@@ -321,5 +358,36 @@ void main() {
       expect(kMinPlausibleStepLengthM, lessThan(kMaxPlausibleStepLengthM));
       expect(kMinPlausibleStepLengthM, greaterThan(0));
     });
+
+    test(
+      'leeStepLengthCorrectionFactor matches Lee et al. (2024) per-range '
+      'coefficients',
+      () {
+        // Table 1 / Eq. 2 of Lee et al., https://doi.org/10.2196/52166:
+        // raw estimate in [0.2, 0.5) m -> x1.37, [0.5, 0.8) m -> x1.02,
+        // [0.8, 1.1] m -> x0.74.
+        expect(leeStepLengthCorrectionFactor(0.35), 1.37);
+        expect(leeStepLengthCorrectionFactor(0.65), 1.02);
+        expect(leeStepLengthCorrectionFactor(0.95), 0.74);
+      },
+    );
+
+    test('leeStepLengthCorrectionFactor bin boundaries are half-open', () {
+      expect(
+        leeStepLengthCorrectionFactor(kLeeShortStepLengthBoundM),
+        kLeeMediumStepCorrectionFactor,
+      );
+      expect(
+        leeStepLengthCorrectionFactor(kLeeMediumStepLengthBoundM),
+        kLeeLongStepCorrectionFactor,
+      );
+    });
+
+    test(
+      'kVerticalDisplacementHighPassCutoffHz is 0.1 Hz (Zijlstra & Hof, 2003)',
+      () {
+        expect(kVerticalDisplacementHighPassCutoffHz, 0.1);
+      },
+    );
   });
 }

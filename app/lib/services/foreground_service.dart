@@ -149,6 +149,15 @@ class _HarTaskHandler extends TaskHandler {
     _recordingStartedAt = DateTime.now();
     _predictionCount = 0;
     _lastLabel = '—';
+    // The extractor's sample counter (baked into every FeatureWindow's, and
+    // later ActivityPrediction's, endSampleIndex) must restart here too: it
+    // has been counting probe/countdown samples since onStart, but
+    // SessionLogRepository.appendSample only starts listening at this same
+    // commit event (see RecordingSessionBloc._onCountdownTicked). Without
+    // this reset, every endSampleIndex is inflated by the probe+countdown
+    // sample count, so it no longer indexes correctly into the session's
+    // persisted rawSamples list.
+    _extractor.reset();
     // The limit clock must start here, not in onStart: onStart fires at
     // Start-press, ~preparationDuration before the bloc's own clock starts
     // at commit. Arming both timers from the same commit event keeps the
