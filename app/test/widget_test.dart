@@ -13,6 +13,7 @@ import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
+import 'package:gait_sense/utils/gait_quality_format.dart';
 
 /// Wraps [child] in a [RepositoryProvider] that serves a real
 /// [UserProfileRepository]. Firebase is never initialized in this test file,
@@ -168,17 +169,27 @@ void main() {
       );
     }
 
+    // Long enough that the level-walking analysis window (~15 s at 2 Hz)
+    // clears defaultTemporalVariabilityMinimumStrideIntervals, so the
+    // variability rows below are expected to render rather than being
+    // withheld as unreliable (gait_temporal_parameters.dart).
     final session = SessionLog(
       startedAt: start,
-      stoppedAt: start.add(const Duration(seconds: 10)),
+      stoppedAt: start.add(const Duration(seconds: 18)),
       modelInfo: const {},
-      rawSamples: [for (var i = 0; i < 500; i++) sampleAt(i)],
+      rawSamples: [for (var i = 0; i < 900; i++) sampleAt(i)],
       predictions: [
         predictionAt(3, 177),
         predictionAt(4, 241),
         predictionAt(5, 305),
         predictionAt(6, 369),
         predictionAt(8, 433),
+        predictionAt(9, 497),
+        predictionAt(10, 561),
+        predictionAt(11, 625),
+        predictionAt(12, 689),
+        predictionAt(13, 753),
+        predictionAt(14, 817),
       ],
     );
 
@@ -220,6 +231,88 @@ void main() {
     );
     expect(find.text('Razlog'), findsNothing);
   });
+
+  testWidgets(
+    'session summary withholds variability as unreliable for a short '
+    'recording',
+    (tester) async {
+      final start = DateTime.utc(2026, 1, 1, 12);
+
+      SensorSample sampleAt(int index) {
+        return SensorSample(
+          timestamp: start.add(Duration(milliseconds: index * 20)),
+          gravityX: 0,
+          gravityY: 0,
+          gravityZ: 1,
+          userAccelerationX: 0,
+          userAccelerationY: 0,
+          userAccelerationZ:
+              0.06 + 0.08 * (1 + math.sin(2 * math.pi * 2 * index * 0.02)) / 2,
+          rotationRateX: 0,
+          rotationRateY: 0,
+          rotationRateZ: 0,
+        );
+      }
+
+      ActivityPrediction predictionAt(int secondsAfterStart, int endIndex) {
+        return ActivityPrediction(
+          label: 'wlk',
+          probabilities: const [0.1, 0.1, 0.5, 0.1, 0.1, 0.1],
+          timestamp: start.add(Duration(seconds: secondsAfterStart)),
+          endSampleIndex: endIndex,
+          inferenceLatencyMs: 10,
+        );
+      }
+
+      // Only the app-level minimum of 5 "wlk" windows -- an analysis window
+      // of ~7.7 s, well under defaultTemporalVariabilityMinimumStrideIntervals
+      // worth of strides at 2 Hz. This is the exact short-recording case W5
+      // targets: cadence is still reported, but CV must be withheld.
+      final session = SessionLog(
+        startedAt: start,
+        stoppedAt: start.add(const Duration(seconds: 10)),
+        modelInfo: const {},
+        rawSamples: [for (var i = 0; i < 500; i++) sampleAt(i)],
+        predictions: [
+          predictionAt(3, 177),
+          predictionAt(4, 241),
+          predictionAt(5, 305),
+          predictionAt(6, 369),
+          predictionAt(8, 433),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _withUserProfile(SessionSummaryScreen(session: session)),
+      );
+
+      await pumpUntilFound(tester, find.text('Kadenca (eksperimentalno)'));
+
+      expect(find.text('Kadenca (eksperimentalno)'), findsOneWidget);
+      expect(
+        find.text('Prosječno vrijeme koraka (eksperimentalno)'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Varijabilnost vremena koraka (eksperimentalno)'),
+        findsNothing,
+      );
+      expect(
+        find.text('Varijabilnost kadence (eksperimentalno)'),
+        findsNothing,
+      );
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Varijabilnost vremena iskoraka (eksperimentalno)'),
+        findsNothing,
+      );
+      expect(
+        find.text(temporalVariabilityUnreliableMessageHr),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets(
     'session summary marks step count unavailable when not computed',

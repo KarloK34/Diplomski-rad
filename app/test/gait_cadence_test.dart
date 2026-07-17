@@ -252,6 +252,48 @@ void main() {
     expect(temporal.gaitRegularity, closeTo(0.42, 1e-12));
   });
 
+  test(
+    'marks step/stride variability unreliable below the minimum stride '
+    'count, reliable at or above it',
+    () {
+      final shortResult = computedResultFromOffsets([
+        Duration.zero,
+        const Duration(milliseconds: 500),
+        const Duration(milliseconds: 1000),
+        const Duration(milliseconds: 1500),
+        const Duration(milliseconds: 2000),
+      ]);
+      final shortTemporal = computeGaitTemporalParameters(shortResult);
+
+      expect(shortTemporal, isNotNull);
+      expect(
+        shortTemporal!.strideIntervalCount,
+        lessThan(defaultTemporalVariabilityMinimumStrideIntervals),
+      );
+      expect(shortTemporal.hasReliableStepTimeVariability, isFalse);
+      expect(shortTemporal.hasReliableStrideTimeVariability, isFalse);
+
+      final longOffsets = [
+        for (
+          var i = 0;
+          i <= defaultTemporalVariabilityMinimumStrideIntervals + 2;
+          i++
+        )
+          Duration(milliseconds: 500 * i),
+      ];
+      final longResult = computedResultFromOffsets(longOffsets);
+      final longTemporal = computeGaitTemporalParameters(longResult);
+
+      expect(longTemporal, isNotNull);
+      expect(
+        longTemporal!.strideIntervalCount,
+        greaterThanOrEqualTo(defaultTemporalVariabilityMinimumStrideIntervals),
+      );
+      expect(longTemporal.hasReliableStepTimeVariability, isTrue);
+      expect(longTemporal.hasReliableStrideTimeVariability, isTrue);
+    },
+  );
+
   test('computes temporal variability from uneven step intervals', () {
     final result = computedResultFromOffsets(
       [
@@ -484,6 +526,80 @@ void main() {
     expect(result.stepCount, 12);
     expect(result.cadenceStepsPerMinute, closeTo(120, 1));
   });
+
+  List<SensorSample> broadbandNoisePeriodicSamples({
+    required int count,
+    required int seed,
+    required double noiseAmplitude,
+  }) {
+    final random = math.Random(seed);
+    return [
+      for (var i = 0; i < count; i++)
+        sampleAt(
+          i,
+          projectedAcceleration:
+              0.06 +
+              0.08 * (1 + math.sin(2 * math.pi * 2 * i * 0.02)) / 2 +
+              noiseAmplitude * (random.nextDouble() * 2 - 1),
+        ),
+    ];
+  }
+
+  test(
+    'does not over-count steps under added broadband noise at the '
+    'default threshold',
+    () {
+      // Per-sample uniform noise on [-0.05, 0.05] g against a 0.08 g
+      // peak-to-trough base signal (a ~60% stress relative to the clean
+      // signal used above), across independent seeds. This checks the
+      // mechanism argument in `defaultCadencePeakThresholdStdMultiplier`'s
+      // doc comment: acceptance also requires a strict local maximum and
+      // strongest-first, period-spaced selection, so the low `k = 0.5`
+      // threshold should not by itself inflate the step count.
+      for (final seed in [1, 2, 3, 4, 5]) {
+        final result = analyzeGaitCadenceSamples(
+          broadbandNoisePeriodicSamples(
+            count: 300,
+            seed: seed,
+            noiseAmplitude: 0.05,
+          ),
+        );
+
+        expect(result.status, GaitCadenceStatus.computed, reason: 'seed=$seed');
+        expect(
+          result.stepCount,
+          12,
+          reason:
+              'seed=$seed, period=${result.dominantPeriod}, '
+              'periodicity=${result.periodicity}, '
+              'minimumInterval=${result.minimumPeakInterval}',
+        );
+      }
+    },
+  );
+
+  test(
+    'keeps the same step count as the threshold multiplier is lowered '
+    'toward zero',
+    () {
+      // Demonstrates that count is bounded by the period-derived minimum
+      // spacing between accepted peaks, not by k: even with almost no
+      // amplitude gate, the same noisy signal yields the same step count.
+      final samples = broadbandNoisePeriodicSamples(
+        count: 300,
+        seed: 1,
+        noiseAmplitude: 0.05,
+      );
+
+      final lenient = analyzeGaitCadenceSamples(
+        samples,
+        peakThresholdStdMultiplier: 0.01,
+      );
+
+      expect(lenient.status, GaitCadenceStatus.computed);
+      expect(lenient.stepCount, 12);
+    },
+  );
 
   test('rejects secondary peaks in a nine-step synthetic signal', () {
     final result = analyzeGaitCadenceSamples(

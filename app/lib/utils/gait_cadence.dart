@@ -174,10 +174,12 @@ GaitCadenceResult analyzeGaitCadence(
 ///
 /// Cadence is reported from the median accepted-peak interval, which is a
 /// project heuristic. Autocorrelation supplies an independent period estimate
-/// and the adaptive peak spacing. This dual estimate follows the periodicity
-/// motivation and harmonic caution in Wu and Urbanek (2023),
-/// https://doi.org/10.1088/1361-6579/accefe. Numeric quality gates not
-/// attributed to that paper are explicitly project heuristics.
+/// and the adaptive peak spacing; cross-checking the two is itself a project
+/// construct, motivated by -- but not sourced from -- the harmonic-ambiguity
+/// concern Wu and Urbanek (2023),
+/// https://doi.org/10.1088/1361-6579/accefe, raise for cadence estimation.
+/// Numeric quality gates not attributed to that paper are explicitly project
+/// heuristics.
 GaitCadenceResult analyzeGaitCadenceSamples(
   List<SensorSample> samples, {
   int sampleIndexOffset = 0,

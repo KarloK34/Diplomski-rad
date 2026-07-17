@@ -86,26 +86,34 @@ class SessionQualitySection extends StatelessWidget {
             label: 'Prosječno vrijeme koraka (eksperimentalno)',
             value: formatDurationSecondsHr(temporal.meanStepTime),
           ),
-          LabeledValueRow(
-            label: 'Varijabilnost vremena koraka (eksperimentalno)',
-            value: formatPercentHr(temporal.stepTimeCoefficientOfVariation),
-          ),
           if (temporal.meanStrideTime case final strideTime?)
             LabeledValueRow(
               label: 'Prosječno vrijeme iskoraka (eksperimentalno)',
               value: formatDurationSecondsHr(strideTime),
             ),
-          if (temporal.strideTimeCoefficientOfVariation case final strideCv?)
+          if (temporal.hasReliableStepTimeVariability) ...[
+            LabeledValueRow(
+              label: 'Varijabilnost vremena koraka (eksperimentalno)',
+              value: formatPercentHr(temporal.stepTimeCoefficientOfVariation),
+            ),
+            LabeledValueRow(
+              label: 'Varijabilnost kadence (eksperimentalno)',
+              value: formatCadenceSpreadHr(
+                temporal.instantCadenceStandardDeviationStepsPerMinute,
+              ),
+            ),
+          ],
+          if (temporal.strideTimeCoefficientOfVariation case final strideCv?
+              when temporal.hasReliableStrideTimeVariability)
             LabeledValueRow(
               label: 'Varijabilnost vremena iskoraka (eksperimentalno)',
               value: formatPercentHr(strideCv),
             ),
-          LabeledValueRow(
-            label: 'Varijabilnost kadence (eksperimentalno)',
-            value: formatCadenceSpreadHr(
-              temporal.instantCadenceStandardDeviationStepsPerMinute,
+          if (!temporal.hasReliableStepTimeVariability)
+            const LabeledValueRow(
+              label: 'Varijabilnost hoda',
+              value: temporalVariabilityUnreliableMessageHr,
             ),
-          ),
           LabeledValueRow(
             label: 'Regularnost signala (indikator kvalitete)',
             value: formatGaitRegularityHr(temporal.gaitRegularity),
@@ -132,6 +140,17 @@ class SessionQualitySection extends StatelessWidget {
             label: 'Razlog brzine hoda',
             value: formatWalkingSpeedUnavailableReasonHr(
               summary.gaitWalkingSpeed,
+            ),
+          ),
+        if (summary.gaitCadence.hasComputedCadence ||
+            summary.gaitWalkingSpeed.hasComputedSpeed)
+          Padding(
+            padding: EdgeInsets.only(top: spacing.xs),
+            child: Text(
+              gaitAnalysisLimitationsNoteHr,
+              style: context.textStyles.bodySmall?.copyWith(
+                color: context.colors.onSurfaceVariant,
+              ),
             ),
           ),
         if (suitableGaitSegments.isEmpty)

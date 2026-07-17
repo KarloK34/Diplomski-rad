@@ -75,6 +75,35 @@ String formatGaitRegularityHr(double? regularity) {
   return formatPercentHr(regularity);
 }
 
+/// Shown in place of step-time/stride-time/instant-cadence variability
+/// figures when a recording has too few full gait cycles for those
+/// coefficient-of-variation estimates to be meaningful (see
+/// `defaultTemporalVariabilityMinimumStrideIntervals` in
+/// `gait_temporal_parameters.dart`) -- below that count the figure reflects
+/// detector noise rather than gait physiology, so it is withheld instead of
+/// shown at face value.
+const String temporalVariabilityUnreliableMessageHr =
+    'Nepouzdano (premalo koraka u zapisu za stabilnu procjenu)';
+
+/// Standing disclosure shown once alongside computed gait metrics.
+///
+/// A single pocket IMU has no mediolateral reference, so it cannot label
+/// which foot made contact: stride timing (`gait_temporal_parameters.dart`)
+/// assumes strict left/right alternation and never measures left/right
+/// asymmetry, and step length/speed (`gait_walking_speed.dart`) apply a model
+/// whose base geometry was validated against a trunk-worn sensor to thigh
+/// motion recorded at a front-pocket placement instead. Mobbs et al., "Gait
+/// metrics analysis utilizing single-point inertial measurement units: a
+/// systematic review", mHealth, 2022,
+/// https://doi.org/10.21037/mhealth-21-17, reach the same conclusion for
+/// single-IMU setups generally. No new metric is introduced by this note --
+/// it documents an existing modelling limitation.
+const String gaitAnalysisLimitationsNoteHr =
+    'Napomena: procjene pretpostavljaju pravilnu izmjenu lijeve i desne noge '
+    '— asimetrija hoda se ne mjeri. Duljina koraka i brzina hoda temelje se '
+    'na modelu prilagođenom za telefon u prednjem džepu i nisu neovisno '
+    'validirane.';
+
 /// Maps a cadence confidence level to its Croatian label.
 String formatCadenceConfidenceHr(GaitCadenceConfidence confidence) {
   return switch (confidence) {

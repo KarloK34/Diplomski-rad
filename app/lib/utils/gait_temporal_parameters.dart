@@ -20,6 +20,30 @@ const double defaultTemporalIntervalLowerMedianRatio = 0.5;
 /// treats the ratio itself as an unvalidated robustness guard.
 const double defaultTemporalIntervalUpperMedianRatio = 1.5;
 
+/// Minimum number of stride (full gait-cycle) intervals required before a
+/// coefficient-of-variation figure is treated as a reliable estimate rather
+/// than detector noise.
+///
+/// Kroneberg et al., "Less Is More -- Estimation of the Number of Strides
+/// Required to Assess Gait Variability in Spatially Confined Settings", Front
+/// Aging Neurosci, 2018, https://doi.org/10.3389/fnagi.2018.00435, report that
+/// roughly 15-30 strides are typically needed for a stable stride-time CV in
+/// short, spatially confined recordings (far fewer than the classic ~400-step
+/// figure from continuous-walk protocols). This project uses 20 -- the lower
+/// half of that range -- as a conservative display gate; the exact value is a
+/// project heuristic, not a clinically validated cutoff.
+///
+/// Both [GaitTemporalParameters.hasReliableStepTimeVariability] and
+/// [GaitTemporalParameters.hasReliableStrideTimeVariability] compare against
+/// [GaitTemporalParameters.strideIntervalCount], not
+/// [GaitTemporalParameters.stepIntervalCount]: the two are direct step vs.
+/// stride views of the same underlying detected events (stride count is
+/// approximately step count minus one here), and Kroneberg et al.'s guidance
+/// is expressed in strides -- i.e. full gait cycles -- so gating step-time CV
+/// on the larger step count would understate how few full cycles were
+/// actually observed.
+const int defaultTemporalVariabilityMinimumStrideIntervals = 20;
+
 /// Temporal gait descriptors derived from accepted step-event timings.
 ///
 /// Temporal gait analysis from acceleration signals is motivated by Zijlstra &
@@ -80,7 +104,14 @@ class GaitTemporalParameters extends Equatable {
   /// contacts. The stride interval is therefore approximated as the interval
   /// between every second accepted step event, following the stride-cycle
   /// timing premise in Zijlstra & Hof (2003),
-  /// https://doi.org/10.1016/S0966-6362(02)00190-X.
+  /// https://doi.org/10.1016/S0966-6362(02)00190-X. This assumes strict
+  /// left/right alternation and one accepted peak per contact; left/right
+  /// asymmetry is never measured this way, and a systematic left/right
+  /// difference is invisible in the pooled stride-time CV -- consistent with
+  /// Mobbs et al., "Gait metrics analysis utilizing single-point inertial
+  /// measurement units: a systematic review", mHealth, 2022,
+  /// https://doi.org/10.21037/mhealth-21-17, who reach the same conclusion
+  /// for single-IMU setups generally.
   final int strideIntervalCount;
 
   /// Mean duration between every second accepted step event.
@@ -115,6 +146,24 @@ class GaitTemporalParameters extends Equatable {
   /// Measurement, 2023, https://doi.org/10.1088/1361-6579/accefe. The app-level
   /// score should be treated as an experimental signal-quality descriptor.
   final double? gaitRegularity;
+
+  /// Whether [stepTimeCoefficientOfVariation] and
+  /// [instantCadenceCoefficientOfVariation] rest on enough full gait cycles
+  /// to be a meaningful variability estimate rather than detector noise.
+  ///
+  /// See [defaultTemporalVariabilityMinimumStrideIntervals] for why this
+  /// compares [strideIntervalCount] (not [stepIntervalCount]) against that
+  /// threshold, and for the literature behind the threshold value. Below this
+  /// gate, callers should hide the CV figures or label them unreliable rather
+  /// than display them at face value.
+  bool get hasReliableStepTimeVariability =>
+      strideIntervalCount >= defaultTemporalVariabilityMinimumStrideIntervals;
+
+  /// Whether [strideTimeCoefficientOfVariation] rests on enough full gait
+  /// cycles to be a meaningful variability estimate rather than detector
+  /// noise. See [hasReliableStepTimeVariability].
+  bool get hasReliableStrideTimeVariability =>
+      strideIntervalCount >= defaultTemporalVariabilityMinimumStrideIntervals;
 
   @override
   List<Object?> get props => [

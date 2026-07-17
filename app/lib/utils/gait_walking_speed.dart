@@ -34,13 +34,15 @@ const String implausibleStepLengthReason = 'implausible_step_length';
 // Physical constants and defaults
 // ---------------------------------------------------------------------------
 
-/// Ratio of leg length to body height.
+/// Ratio of trochanteric height to body height.
 ///
-/// Derived from Winter, "Biomechanics and Motor Control of Human Movement",
-/// 4th ed., 2009 (Table 4.1): the distance from the greater trochanter to the
-/// floor is approximately 53 % of standing height for adults.  This ratio is
-/// used in the inverted-pendulum step-length model (Zijlstra & Hof, 2003,
-/// https://doi.org/10.1016/S0966-6362(02)00190-X).
+/// Value 0.530 is from Drillis & Contini (1966), "Body Segment Parameters,"
+/// NYU School of Engineering Report No. 1166-03, reproduced in Winter,
+/// "Biomechanics and Motor Control of Human Movement", 4th ed., 2009, Fig. 4.1:
+/// distance from the greater trochanter to the floor is
+/// ~53 % of standing height for adults. This is the same trochanteric-height
+/// definition Zijlstra & Hof use for pendulum length `l`
+/// -- it is not the segmental leg length (thigh + shank, ~0.49H).
 const double kLegLengthHeightRatio = 0.53;
 
 /// Plausible lower bound for adult step length (m).
@@ -162,6 +164,18 @@ enum GaitWalkingSpeedStatus {
 /// acceleration and high-pass filtering the resulting position signal to
 /// control drift; see [analyzeGaitWalkingSpeed] for this implementation's
 /// version of that method.
+///
+/// The inverted-pendulum geometry itself was derived and validated by
+/// Zijlstra & Hof against a trunk-worn sensor; this app instead records a
+/// front-pocket placement, where the dominant motion is thigh swing rather
+/// than trunk sway. [leeStepLengthCorrectionFactor] is what bridges that gap
+/// -- it is fit to Lee et al.'s own pocket-placement data -- so these values
+/// remain an unvalidated estimate for any user whose gait differs from that
+/// validation population, not a clinically established measurement. Mobbs et
+/// al., "Gait metrics analysis utilizing single-point inertial measurement
+/// units: a systematic review", mHealth, 2022,
+/// https://doi.org/10.21037/mhealth-21-17, reach the same conclusion for
+/// single-IMU spatial estimates generally.
 ///
 /// All values are project-level estimations and are not clinically validated.
 class GaitWalkingSpeedResult extends Equatable {

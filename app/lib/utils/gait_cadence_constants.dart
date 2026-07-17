@@ -65,9 +65,22 @@ const double defaultCadenceMinimumPeakIntervalFraction = 0.75;
 
 /// Adaptive peak threshold multiplier applied to the signal standard deviation.
 ///
-/// Adaptive thresholds follow Susi et al. (2013),
-/// https://doi.org/10.3390/s130201539. The value 0.5 is a project heuristic and
-/// is not a clinically validated step-detection threshold.
+/// The `mean + k * std` form itself follows Lee, Choi, and Lee, "Step
+/// Detection Robust against the Dynamics of Smartphones", Sensors, 2015,
+/// https://doi.org/10.3390/s151027230, who validate it for a front trouser
+/// pocket placement using `k = 4`.
+///
+/// This project uses `k = 0.5`, well below Lee, Choi, and Lee's validated
+/// value, which is a project heuristic rather than a literature-backed
+/// choice. It is deliberately permissive because peak acceptance does not
+/// rely on the threshold alone: a candidate must also be a strict local
+/// maximum, and accepted peaks are chosen strongest-first with a
+/// period-derived minimum spacing (see `_detectPeaks`), so a low threshold
+/// mainly improves recall for weak-amplitude steps rather than causing
+/// over-counting — spurious candidates between true steps still compete for
+/// the same spacing window and lose to the true peak, and a noisy result
+/// that inflates step count also degrades autocorrelation periodicity, which
+/// is gated separately.
 const double defaultCadencePeakThresholdStdMultiplier = 0.5;
 
 /// Preferred minimum autocorrelation for periodic evidence.
@@ -116,10 +129,13 @@ const int defaultCadenceConsistentEstimateMinimumSteps = 12;
 
 /// Relative strength required to prefer a shorter autocorrelation maximum.
 ///
-/// This harmonic-selection ratio is a project heuristic. Preferring the
-/// shorter of similarly supported periods addresses the harmonic ambiguity
-/// discussed by Wu and Urbanek (2023),
-/// https://doi.org/10.1088/1361-6579/accefe.
+/// Both the ratio and the shorter-lag preference it drives are a project
+/// heuristic against period-doubling (sub-harmonic) peaks in autocorrelation,
+/// not a rule from the literature. Wu and Urbanek (2023),
+/// https://doi.org/10.1088/1361-6579/accefe, only motivate the underlying
+/// concern -- that a fundamental component need not be stronger than its
+/// multiples. Their own method estimates cadence via de-shape
+/// synchrosqueezing, not autocorrelation, and has no shortest-lag rule.
 const double defaultCadenceComparablePeriodicityRatio = 0.7;
 
 /// App-level minimum number of detected peaks needed to report cadence.
