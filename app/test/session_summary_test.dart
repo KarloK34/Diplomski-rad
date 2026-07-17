@@ -605,6 +605,113 @@ void main() {
       );
     });
 
+    test(
+      'cadence counts steps from a stair run absent from gaitSegments '
+      '(level-walking only)',
+      () {
+        final rawSamples = periodicSamples(500);
+        final summary = computeSessionQualitySummary(
+          session(
+            rawSamples: rawSamples,
+            predictions: [
+              predictionAt('ups', 3, endSampleIndex: 177),
+              predictionAt('ups', 4, endSampleIndex: 241),
+              predictionAt('ups', 5, endSampleIndex: 305),
+              predictionAt('ups', 6, endSampleIndex: 369),
+              predictionAt('ups', 8, endSampleIndex: 433),
+            ],
+            stoppedAt: start.add(const Duration(seconds: 10)),
+          ),
+          userHeightCm: 175,
+        );
+
+        // Never a level-walking candidate: gaitSegments/suitableGaitSegments
+        // and walking-speed stay wlk-only regardless of cadence's broader
+        // label set.
+        expect(summary.gaitSegments, isEmpty);
+        expect(summary.suitableGaitSegments, isEmpty);
+        expect(summary.gaitWalkingSpeed.hasComputedSpeed, isFalse);
+
+        // But cadence/step counting does pick up the stair run — same
+        // signal and endSampleIndex range as the all-'wlk' case above, so the
+        // same result.
+        expect(summary.gaitCadence.hasComputedCadence, isTrue);
+        expect(summary.gaitCadence.totalStepCount, 15);
+      },
+    );
+
+    test(
+      'cadence counts steps from a jogging run absent from gaitSegments '
+      '(level-walking only)',
+      () {
+        final rawSamples = periodicSamples(500);
+        final summary = computeSessionQualitySummary(
+          session(
+            rawSamples: rawSamples,
+            predictions: [
+              predictionAt('jog', 3, endSampleIndex: 177),
+              predictionAt('jog', 4, endSampleIndex: 241),
+              predictionAt('jog', 5, endSampleIndex: 305),
+              predictionAt('jog', 6, endSampleIndex: 369),
+              predictionAt('jog', 8, endSampleIndex: 433),
+            ],
+            stoppedAt: start.add(const Duration(seconds: 10)),
+          ),
+          userHeightCm: 175,
+        );
+
+        // Jogging is never a level-walking candidate either: the
+        // inverted-pendulum model's single-support assumption cannot
+        // represent a run's flight phase at all.
+        expect(summary.gaitSegments, isEmpty);
+        expect(summary.suitableGaitSegments, isEmpty);
+        expect(summary.gaitWalkingSpeed.hasComputedSpeed, isFalse);
+
+        expect(summary.gaitCadence.hasComputedCadence, isTrue);
+        expect(summary.gaitCadence.totalStepCount, 15);
+      },
+    );
+
+    test(
+      'cadence treats a wlk/ups mix as one continuous run, unlike '
+      'gaitSegments',
+      () {
+        final rawSamples = periodicSamples(500);
+        final summary = computeSessionQualitySummary(
+          session(
+            rawSamples: rawSamples,
+            predictions: [
+              predictionAt('wlk', 3, endSampleIndex: 177),
+              predictionAt('ups', 4, endSampleIndex: 241),
+              predictionAt('ups', 5, endSampleIndex: 305),
+              predictionAt('wlk', 6, endSampleIndex: 369),
+              predictionAt('wlk', 8, endSampleIndex: 433),
+            ],
+            stoppedAt: start.add(const Duration(seconds: 10)),
+          ),
+          userHeightCm: 175,
+        );
+
+        // gaitSegments (level-walking only) fragments at every non-'wlk'
+        // window into two too-short runs...
+        expect(summary.gaitSegments, hasLength(2));
+        expect(
+          summary.gaitSegments.every(
+            (s) => s.quality == GaitSegmentQuality.tooFewWindows,
+          ),
+          isTrue,
+        );
+        expect(summary.suitableGaitSegments, isEmpty);
+
+        // ...but cadence sees one continuous 5-window locomotion run, so a
+        // brief HAR misclassification mid-walk does not fragment or drop the
+        // steps around it.
+        expect(summary.gaitCadence.signalSegmentCount, 1);
+        expect(summary.gaitCadence.hasComputedCadence, isTrue);
+        expect(summary.gaitCadence.totalStepCount, 15);
+      },
+    );
+
     test('gaitWalkingSpeed is noHeight when userHeightCm is not provided', () {
       final summary = computeSessionQualitySummary(
         session(predictions: const []),

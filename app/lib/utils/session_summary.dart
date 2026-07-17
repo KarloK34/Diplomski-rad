@@ -14,14 +14,6 @@ import 'package:gait_sense/utils/prediction_segment_time.dart';
 /// All functions here are platform-free so they can be unit-tested on the host
 /// VM; the screen widget consumes their output and adds the display layer.
 
-/// Effective labels that count as stable locomotion context in the MotionSense
-/// label set: walking, upstairs, and downstairs. The activity taxonomy follows
-/// MotionSense (Malekzadeh et al., 2019,
-/// https://doi.org/10.1145/3302505.3310068). This set is deliberately broader
-/// than level-walking gait candidates, where only `wlk` is accepted by app
-/// policy.
-const Set<String> defaultLocomotionLabels = {'wlk', 'ups', 'dws'};
-
 /// App-level minimum for consecutive locomotion windows before a run is shown
 /// as stable locomotion. This threshold is project-specific and is not
 /// clinically validated.
@@ -134,7 +126,8 @@ class StableLocomotionSegment extends Equatable {
   ];
 }
 
-/// Prototype cadence aggregation over suitable level-walking signal slices.
+/// Prototype cadence aggregation over suitable locomotion signal slices
+/// (level-walking, stairs, and jogging — see [defaultLocomotionLabels]).
 ///
 /// Acceleration-based gait analysis is motivated by Zijlstra & Hof,
 /// "Assessment of spatio-temporal gait parameters from trunk accelerations
@@ -313,7 +306,9 @@ class SessionQualitySummary extends Equatable {
   /// Consecutive `wlk` runs considered for level-walking gait analysis.
   final List<GaitSegment> gaitSegments;
 
-  /// Prototype cadence summary computed from suitable raw gait signal slices.
+  /// Prototype cadence summary computed from suitable locomotion signal
+  /// slices — broader than [gaitSegments] (see [defaultLocomotionLabels]),
+  /// so its step count can include stair runs that never appear there.
   final GaitCadenceSummary gaitCadence;
 
   /// Prototype walking-speed and step-length summary computed from suitable
@@ -704,6 +699,8 @@ SessionQualitySummary computeSessionQualitySummary(
     0,
     (sum, segment) => sum + segment.duration.inMicroseconds,
   );
+  // Level-walking only: feeds walking-speed/step-length (level-gait model)
+  // and the "Kandidati za analizu hoda" display.
   final gaitSegments = extractGaitSegments(
     session,
     minWindows: minGaitCandidateWindows,
@@ -713,7 +710,23 @@ SessionQualitySummary computeSessionQualitySummary(
     session,
     gaitSegments: gaitSegments,
   );
-  final gaitCadence = summarizeGaitCadence(gaitSignalSegments);
+
+  // Broader than gaitSegments: step *counting* has no level-gait assumption
+  // to protect, so stair runs contribute to cadence/step count even though
+  // they're absent from gaitSegments and never feed walking-speed. See
+  // defaultLocomotionLabels' doc comment (gait_segments.dart).
+  final cadenceGaitSegments = extractGaitSegments(
+    session,
+    labels: defaultLocomotionLabels,
+    minWindows: minGaitCandidateWindows,
+    fallbackStepDuration: fallbackStepDuration,
+  );
+  final cadenceSignalSegments = extractGaitSignalSegments(
+    session,
+    gaitSegments: cadenceGaitSegments,
+  );
+
+  final gaitCadence = summarizeGaitCadence(cadenceSignalSegments);
   final gaitWalkingSpeed = userHeightCm != null
       ? summarizeGaitWalkingSpeed(
           gaitSignalSegments,

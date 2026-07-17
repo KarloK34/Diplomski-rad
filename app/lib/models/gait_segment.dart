@@ -1,22 +1,26 @@
 import 'package:equatable/equatable.dart';
 
-/// Quality status for a level-walking gait-analysis candidate.
+/// Quality status for a gait-segment candidate.
 enum GaitSegmentQuality {
   /// Segment passes the app-level candidate gate.
   suitable,
 
-  /// Segment is level walking, but shorter than the app-level minimum.
+  /// Segment matches the requested locomotion labels, but is shorter than the
+  /// app-level minimum.
   tooFewWindows,
 }
 
-/// Consecutive `wlk` predictions prepared for later gait analysis.
+/// Consecutive same-purpose locomotion predictions prepared for later gait
+/// analysis.
 ///
-/// The `wlk`, `ups`, and `dws` codes follow the MotionSense dataset taxonomy
-/// (Malekzadeh et al., "Mobile Sensor Data Anonymization", IoTDI 2019,
-/// https://doi.org/10.1145/3302505.3310068). This model intentionally treats
-/// only `wlk` as a level-walking candidate; stair labels remain locomotion but
-/// are not used for level-walking gait metrics. That gate is an application
-/// policy, not a clinically validated rule.
+/// The `wlk`, `ups`, `dws`, and `jog` codes follow the MotionSense dataset
+/// taxonomy (Malekzadeh et al., "Mobile Sensor Data Anonymization", IoTDI
+/// 2019, https://doi.org/10.1145/3302505.3310068). Which labels form a run is
+/// decided by the caller of `extractGaitSegments`: level-walking only (`wlk`)
+/// for the walking-speed/step-length model, or the broader
+/// `defaultLocomotionLabels` (`wlk`+`ups`+`dws`+`jog`) for step counting —
+/// see that constant's doc comment. That gate is an application policy, not a
+/// clinically validated rule.
 class GaitSegment extends Equatable {
   /// Creates a gait-analysis candidate segment.
   const GaitSegment({
