@@ -1,8 +1,9 @@
 import 'package:gait_sense/models/metric_info.dart';
 
-/// Plain-language explanations for the session-overview, section-header, and
-/// classification-quality metrics shown on the session summary and session
-/// detail screens, surfaced via `MetricInfoButton`.
+/// Plain-language explanations for the session-overview, section-header,
+/// classification-quality, and cross-session trend metrics shown on the
+/// session summary, session detail, and sessions-trends screens, surfaced via
+/// `MetricInfoButton`.
 
 // ---------------------------------------------------------------------------
 // Session overview
@@ -64,6 +65,18 @@ const MetricInfo timelineMetricInfo = MetricInfo(
   description:
       'Kronološki prikaz prepoznatih aktivnosti tijekom sesije, podijeljen '
       'u uzastopne odsječke.',
+);
+
+// ---------------------------------------------------------------------------
+// Cross-session trends
+// ---------------------------------------------------------------------------
+
+/// Explanation for the "Usporedba aktivnosti" trend chart.
+const MetricInfo activityComparisonMetricInfo = MetricInfo(
+  title: 'Usporedba aktivnosti',
+  description:
+      'Udio prozora prepoznatih kao svaka aktivnost, po sesiji, radi '
+      'usporedbe kroz odabrane sesije.',
 );
 
 // ---------------------------------------------------------------------------

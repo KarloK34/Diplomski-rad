@@ -69,6 +69,7 @@ class MetricTrendChart extends StatelessWidget {
           maxX: (points.length - 1).toDouble(),
           minY: minY,
           maxY: maxY,
+          baselineY: minY,
           gridData: FlGridData(
             drawVerticalLine: false,
             horizontalInterval: yInterval,

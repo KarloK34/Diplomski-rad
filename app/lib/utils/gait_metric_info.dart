@@ -100,8 +100,7 @@ const MetricInfo walkingSpeedMetricInfo = MetricInfo(
   title: 'Brzina hoda',
   description:
       'Gruba procjena brzine hodanja, izračunata iz kadence i procijenjene '
-      'duljine koraka pomoću modela obrnutog njihala i visine korisnika. '
-      'Točnost ovisi o položaju telefona i nije klinički validirana.',
+      'duljine koraka pomoću modela obrnutog njihala i visine korisnika. ',
 );
 
 /// Explanation for step length.
@@ -109,6 +108,5 @@ const MetricInfo stepLengthMetricInfo = MetricInfo(
   title: 'Duljina koraka',
   description:
       'Gruba procjena duljine jednog koraka, izračunata iz kadence i '
-      'visine korisnika pomoću modela obrnutog njihala. Točnost ovisi o '
-      'položaju telefona i nije klinički validirana.',
+      'visine korisnika pomoću modela obrnutog njihala.',
 );

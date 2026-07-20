@@ -3,13 +3,16 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gait_sense/blocs/sessions_list/sessions_list_cubit.dart';
 import 'package:gait_sense/models/session_summary_record.dart';
 import 'package:gait_sense/theme/theme_context.dart';
+import 'package:gait_sense/utils/gait_metric_info.dart';
+import 'package:gait_sense/utils/session_metric_info.dart';
 import 'package:gait_sense/utils/sessions_filter.dart';
 import 'package:gait_sense/widgets/cards/chart_card.dart';
 import 'package:gait_sense/widgets/charts/activity_comparison_chart.dart';
 import 'package:gait_sense/widgets/charts/metric_trend_chart.dart';
 
-/// Cross-session insight charts for the Sessions tab: cadence and walking-speed
-/// trends over time, plus an activity-mix comparison of recent sessions.
+/// Cross-session insight charts for the Sessions tab: cadence, walking-speed,
+/// and step-length trends over time, plus an activity-mix comparison of
+/// recent sessions.
 ///
 /// Each chart appears only once it has enough data; with too few sessions a
 /// short hint is shown instead. Scoped by the same period/activity filters
@@ -50,12 +53,19 @@ class SessionsTrends extends StatelessWidget {
             case final speed?)
           MetricTrendPoint(time: session.startedAt, value: speed),
     ];
+    final stepLengthPoints = [
+      for (final session in scoped)
+        if (session.quality.gaitWalkingSpeed.averageStepLengthM
+            case final length?)
+          MetricTrendPoint(time: session.startedAt, value: length),
+    ];
 
     final cards = <Widget>[
       if (cadencePoints.length >= 2)
         ChartCard(
           title: 'Trend kadence',
           subtitle: 'Prosječna kadenca po sesiji (kor/min)',
+          info: cadenceMetricInfo,
           child: MetricTrendChart(
             points: cadencePoints,
             color: colors.activityWalking,
@@ -66,16 +76,29 @@ class SessionsTrends extends StatelessWidget {
         ChartCard(
           title: 'Trend brzine hoda',
           subtitle: 'Prosječna brzina hoda po sesiji (m/s)',
+          info: walkingSpeedMetricInfo,
           child: MetricTrendChart(
             points: speedPoints,
             color: colors.chartComparison,
             formatValue: (value) => value.toStringAsFixed(1),
           ),
         ),
+      if (stepLengthPoints.length >= 2)
+        ChartCard(
+          title: 'Trend duljine koraka',
+          subtitle: 'Prosječna duljina koraka po sesiji (cm)',
+          info: stepLengthMetricInfo,
+          child: MetricTrendChart(
+            points: stepLengthPoints,
+            color: colors.warning,
+            formatValue: (value) => (value * 100).round().toString(),
+          ),
+        ),
       if (scoped.length >= 2)
         ChartCard(
           title: 'Usporedba aktivnosti',
           subtitle: 'Udio aktivnosti u odabranim sesijama',
+          info: activityComparisonMetricInfo,
           child: ActivityComparisonChart(sessions: scoped),
         ),
     ];
