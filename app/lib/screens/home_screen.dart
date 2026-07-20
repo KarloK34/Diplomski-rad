@@ -6,6 +6,7 @@ import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
 import 'package:gait_sense/blocs/sessions/sessions_state.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
 import 'package:gait_sense/theme/theme_context.dart';
+import 'package:gait_sense/utils/gait_metric_info.dart';
 import 'package:gait_sense/utils/session_summary_format.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -27,7 +28,6 @@ class HomeScreen extends StatelessWidget {
         final walking = state.aggregates.totalWalkingTime;
         final cadence = state.aggregates.averageCadenceStepsPerMinute;
         final speed = state.aggregates.averageWalkingSpeedMs;
-        final latest = state.latest;
 
         return ScreenBody(
           children: [
@@ -85,6 +85,14 @@ class HomeScreen extends StatelessWidget {
                 actionIcon: Icons.refresh,
                 onAction: () => context.read<SessionsCubit>().bind(),
               )
+            else if (sessions.isEmpty)
+              const EmptyStateCard(
+                icon: Icons.insights,
+                title: 'Nema spremljenih sesija',
+                message:
+                    'Nakon prve snimljene sesije ovdje će biti dostupni '
+                    'pregled i statistika.',
+              )
             else ...[
               MetricGrid(
                 tiles: [
@@ -100,44 +108,35 @@ class HomeScreen extends StatelessWidget {
                     value: cadence == null
                         ? _dash
                         : formatCadenceValueHr(cadence),
+                    info: cadenceMetricInfo,
                   ),
                   MetricTile(
                     label: 'Brzina',
                     value: speed == null
                         ? _dash
                         : formatWalkingSpeedValueHr(speed),
+                    info: walkingSpeedMetricInfo,
                   ),
                 ],
               ),
               SizedBox(height: spacing.md),
-              if (latest == null)
-                const InfoCard(
-                  title: 'Zadnja sesija',
-                  rows: [
-                    LabeledRow(
-                      label: 'Status',
-                      value: 'Nema spremljenih sesija',
-                    ),
-                  ],
-                )
-              else
-                InfoCard(
-                  title: 'Zadnja sesija',
-                  rows: [
-                    LabeledRow(
-                      label: 'Datum',
-                      value: formatStartTimestamp(latest.startedAt),
-                    ),
-                    LabeledRow(
-                      label: 'Trajanje',
-                      value: formatElapsedClock(latest.duration),
-                    ),
-                    LabeledRow(
-                      label: 'Predikcije',
-                      value: '${latest.predictionCount}',
-                    ),
-                  ],
-                ),
+              InfoCard(
+                title: 'Zadnja sesija',
+                rows: [
+                  LabeledRow(
+                    label: 'Datum',
+                    value: formatStartTimestamp(sessions.first.startedAt),
+                  ),
+                  LabeledRow(
+                    label: 'Trajanje',
+                    value: formatElapsedClock(sessions.first.duration),
+                  ),
+                  LabeledRow(
+                    label: 'Predikcije',
+                    value: '${sessions.first.predictionCount}',
+                  ),
+                ],
+              ),
             ],
           ],
         );
