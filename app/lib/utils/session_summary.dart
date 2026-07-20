@@ -141,6 +141,7 @@ class GaitCadenceSummary extends Equatable {
     required this.sampledSignalSegmentCount,
     required this.computedResultCount,
     required this.averageCadenceStepsPerMinute,
+    required this.signalDuration,
     required this.totalStepCount,
     required this.temporalParameters,
     required this.status,
@@ -160,6 +161,15 @@ class GaitCadenceSummary extends Equatable {
 
   /// Duration-weighted cadence, or null when no segment produced cadence.
   final double? averageCadenceStepsPerMinute;
+
+  /// Total duration of the computed segments backing
+  /// [averageCadenceStepsPerMinute] — the same per-segment durations used to
+  /// weight it (see [summarizeGaitCadence]). Persisted so cross-session
+  /// aggregation (`session_aggregates.dart`) can reweight by the exact
+  /// amount of signal each session contributed rather than by a proxy
+  /// duration. [Duration.zero] whenever [averageCadenceStepsPerMinute] is
+  /// null.
+  final Duration signalDuration;
 
   /// Total accepted peak count across cadence attempts.
   final int totalStepCount;
@@ -189,6 +199,7 @@ class GaitCadenceSummary extends Equatable {
     sampledSignalSegmentCount,
     computedResultCount,
     averageCadenceStepsPerMinute,
+    signalDuration,
     totalStepCount,
     temporalParameters,
     status,
@@ -384,6 +395,7 @@ GaitCadenceSummary summarizeGaitCadence(
       sampledSignalSegmentCount: 0,
       computedResultCount: 0,
       averageCadenceStepsPerMinute: null,
+      signalDuration: Duration.zero,
       totalStepCount: 0,
       temporalParameters: null,
       status: GaitCadenceStatus.empty,
@@ -403,6 +415,7 @@ GaitCadenceSummary summarizeGaitCadence(
       sampledSignalSegmentCount: 0,
       computedResultCount: 0,
       averageCadenceStepsPerMinute: null,
+      signalDuration: Duration.zero,
       totalStepCount: 0,
       temporalParameters: null,
       status: GaitCadenceStatus.empty,
@@ -443,6 +456,7 @@ GaitCadenceSummary summarizeGaitCadence(
       sampledSignalSegmentCount: sampledSignals.length,
       computedResultCount: 0,
       averageCadenceStepsPerMinute: null,
+      signalDuration: Duration.zero,
       totalStepCount: totalStepCount,
       temporalParameters: null,
       status: firstResult.status,
@@ -474,6 +488,7 @@ GaitCadenceSummary summarizeGaitCadence(
     sampledSignalSegmentCount: sampledSignals.length,
     computedResultCount: computedResults.length,
     averageCadenceStepsPerMinute: weightedCadence,
+    signalDuration: Duration(microseconds: weightedDurationUs),
     totalStepCount: totalStepCount,
     temporalParameters: temporalParameters,
     status: weightedCadence == null

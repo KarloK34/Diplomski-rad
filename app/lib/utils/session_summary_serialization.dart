@@ -237,6 +237,7 @@ Map<String, dynamic> _cadenceToJson(GaitCadenceSummary cadence) => {
   'sampledSignalSegmentCount': cadence.sampledSignalSegmentCount,
   'computedResultCount': cadence.computedResultCount,
   'averageCadenceStepsPerMinute': cadence.averageCadenceStepsPerMinute,
+  'signalDurationMs': cadence.signalDuration.inMilliseconds,
   'totalStepCount': cadence.totalStepCount,
   'temporalParameters': cadence.temporalParameters == null
       ? null
@@ -256,6 +257,9 @@ GaitCadenceSummary _cadenceFromJson(Map<String, dynamic> json) {
     computedResultCount: (json['computedResultCount'] as num).toInt(),
     averageCadenceStepsPerMinute: (json['averageCadenceStepsPerMinute'] as num?)
         ?.toDouble(),
+    signalDuration: Duration(
+      milliseconds: (json['signalDurationMs'] as num?)?.toInt() ?? 0,
+    ),
     totalStepCount: (json['totalStepCount'] as num).toInt(),
     temporalParameters: temporal == null
         ? null

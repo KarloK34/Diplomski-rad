@@ -54,6 +54,7 @@ SessionQualitySummary _quality({
       sampledSignalSegmentCount: 0,
       computedResultCount: cadence != null ? 1 : 0,
       averageCadenceStepsPerMinute: cadence,
+      signalDuration: Duration.zero,
       totalStepCount: cadence != null ? 200 : 0,
       temporalParameters: null,
       status: cadence != null

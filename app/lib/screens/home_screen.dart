@@ -70,7 +70,9 @@ class HomeScreen extends StatelessWidget {
             ActionCard(
               icon: Icons.directions_walk,
               title: 'Nova sesija',
-              subtitle: 'Pokreni snimanje prije nego mobitel spremiš u džep.',
+              subtitle:
+                  'Snimi novu sesiju za analizu aktivnosti i '
+                  'parametara hoda.',
               actionLabel: 'Započni',
               onPressed: () => context.go(AppRoutes.record),
             ),

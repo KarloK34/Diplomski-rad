@@ -607,6 +607,10 @@ void main() {
         summary.gaitCadence.averageCadenceStepsPerMinute,
         isNot(closeTo(simpleAverage, 0.01)),
       );
+      expect(
+        summary.gaitCadence.signalDuration,
+        Duration(microseconds: totalDurationUs),
+      );
     });
 
     test(

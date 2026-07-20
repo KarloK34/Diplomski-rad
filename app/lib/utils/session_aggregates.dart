@@ -1,4 +1,5 @@
 import 'package:gait_sense/models/session_summary_record.dart';
+import 'package:gait_sense/utils/session_summary.dart';
 
 /// Cross-session aggregations for the dashboard tiles.
 ///
@@ -11,11 +12,16 @@ const String walkingActivityLabel = 'wlk';
 
 /// The dashboard's cross-session aggregates, computed together in one pass.
 ///
-/// `averageCadenceStepsPerMinute` and `averageWalkingSpeedMs` are plain means
-/// of the per-session averages (not duration-weighted) over sessions that
-/// computed one, and null when none did; the per-session values are
-/// themselves experimental estimates, so these are only an indicative trend
-/// and are not clinically validated.
+/// `averageCadenceStepsPerMinute` and `averageWalkingSpeedMs` are duration-
+/// weighted means of the per-session averages over sessions that computed
+/// one (see [sessionHistoryAggregates] for the weight used), matching the
+/// duration-weighting rule already used for the intra-session aggregation in
+/// `summarizeGaitCadence`/`summarizeGaitWalkingSpeed` (session_summary.dart)
+/// so a session with only a couple of minutes of usable gait signal doesn't
+/// pull the trend as hard as one with much more. Null when no session
+/// computed one; the per-session values are themselves experimental
+/// estimates, so these are only an indicative trend and are not clinically
+/// validated.
 typedef SessionHistoryAggregates = ({
   Duration totalWalkingTime,
   double? averageCadenceStepsPerMinute,
@@ -31,14 +37,25 @@ const SessionHistoryAggregates emptySessionHistoryAggregates = (
 
 /// Computes [SessionHistoryAggregates] over [sessions] in a single pass, so
 /// the dashboard doesn't walk the (potentially large) history once per tile.
+///
+/// Both metrics are weighted by the exact same duration their per-session
+/// average was itself weighted by, so cross-session aggregation doesn't
+/// introduce any new approximation: cadence by
+/// [GaitCadenceSummary.signalDuration] and speed by
+/// [SessionQualitySummary.levelWalkingGaitDuration] (walking speed is only
+/// ever computed from the level-walking gait segments that getter sums). A
+/// session whose weight is zero (e.g. an older record saved before
+/// [GaitCadenceSummary.signalDuration] was tracked, or a session too short
+/// for either duration to be non-zero) still contributes its computed value
+/// at a nominal weight of one, so it isn't silently dropped from the trend.
 SessionHistoryAggregates sessionHistoryAggregates(
   List<SessionSummaryRecord> sessions,
 ) {
   var walkingTime = Duration.zero;
-  var cadenceSum = 0.0;
-  var cadenceCount = 0;
-  var speedSum = 0.0;
-  var speedCount = 0;
+  var cadenceWeightedSum = 0.0;
+  var cadenceWeight = 0.0;
+  var speedWeightedSum = 0.0;
+  var speedWeight = 0.0;
 
   for (final session in sessions) {
     for (final total in session.classTotals) {
@@ -47,22 +64,37 @@ SessionHistoryAggregates sessionHistoryAggregates(
 
     final cadence = session.quality.gaitCadence.averageCadenceStepsPerMinute;
     if (cadence != null) {
-      cadenceSum += cadence;
-      cadenceCount++;
+      final weight = _weightOrNominal(
+        session.quality.gaitCadence.signalDuration,
+      );
+      cadenceWeightedSum += cadence * weight;
+      cadenceWeight += weight;
     }
 
     final speed = session.quality.gaitWalkingSpeed.averageWalkingSpeedMs;
     if (speed != null) {
-      speedSum += speed;
-      speedCount++;
+      final weight = _weightOrNominal(
+        session.quality.levelWalkingGaitDuration,
+      );
+      speedWeightedSum += speed * weight;
+      speedWeight += weight;
     }
   }
 
   return (
     totalWalkingTime: walkingTime,
-    averageCadenceStepsPerMinute: cadenceCount == 0
+    averageCadenceStepsPerMinute: cadenceWeight == 0
         ? null
-        : cadenceSum / cadenceCount,
-    averageWalkingSpeedMs: speedCount == 0 ? null : speedSum / speedCount,
+        : cadenceWeightedSum / cadenceWeight,
+    averageWalkingSpeedMs: speedWeight == 0
+        ? null
+        : speedWeightedSum / speedWeight,
   );
+}
+
+/// [duration] in microseconds, or a nominal weight of one when it's zero —
+/// see [sessionHistoryAggregates] for why a zero duration still counts.
+double _weightOrNominal(Duration duration) {
+  final microseconds = duration.inMicroseconds;
+  return microseconds > 0 ? microseconds.toDouble() : 1.0;
 }

@@ -21,6 +21,7 @@ void main() {
       sampledSignalSegmentCount: 0,
       computedResultCount: 0,
       averageCadenceStepsPerMinute: null,
+      signalDuration: Duration.zero,
       totalStepCount: 0,
       temporalParameters: null,
       status: GaitCadenceStatus.empty,

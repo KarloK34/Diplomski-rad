@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/session_summary_record.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_walking_speed.dart';
@@ -6,7 +7,31 @@ import 'package:gait_sense/utils/session_aggregates.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 
 void main() {
-  SessionQualitySummary qualityWith({double? cadence, double? speed}) {
+  // A single suitable gait segment whose analysis window spans [duration],
+  // so `levelWalkingGaitDuration` reports exactly that value.
+  List<GaitSegment> gaitSegmentsOf(Duration duration) => [
+    GaitSegment(
+      startIndex: 0,
+      endIndexExclusive: 1,
+      windows: 1,
+      displayStartOffset: Duration.zero,
+      displayEndOffset: duration,
+      analysisStartOffset: Duration.zero,
+      analysisEndOffset: duration,
+      analysisStartSampleIndex: null,
+      analysisEndSampleIndexExclusive: null,
+      labelCounts: const {},
+      quality: GaitSegmentQuality.suitable,
+      qualityReason: null,
+    ),
+  ];
+
+  SessionQualitySummary qualityWith({
+    double? cadence,
+    double? speed,
+    Duration cadenceSignalDuration = Duration.zero,
+    List<GaitSegment> gaitSegments = const [],
+  }) {
     return SessionQualitySummary(
       predictionCount: 0,
       rawSmoothedChangeCount: 0,
@@ -17,12 +42,13 @@ void main() {
       stableLocomotionWindowCount: 0,
       stableLocomotionDuration: Duration.zero,
       hasEnoughStableLocomotion: false,
-      gaitSegments: const [],
+      gaitSegments: gaitSegments,
       gaitCadence: GaitCadenceSummary(
         signalSegmentCount: 0,
         sampledSignalSegmentCount: 0,
         computedResultCount: cadence != null ? 1 : 0,
         averageCadenceStepsPerMinute: cadence,
+        signalDuration: cadenceSignalDuration,
         totalStepCount: 0,
         temporalParameters: null,
         status: cadence != null
@@ -49,6 +75,8 @@ void main() {
     List<ClassTotal> totals = const [],
     double? cadence,
     double? speed,
+    Duration cadenceSignalDuration = Duration.zero,
+    List<GaitSegment> gaitSegments = const [],
   }) {
     return SessionSummaryRecord(
       startedAt: DateTime.utc(2026),
@@ -60,7 +88,12 @@ void main() {
       heightCmAtRecording: null,
       classTotals: totals,
       timeline: const [],
-      quality: qualityWith(cadence: cadence, speed: speed),
+      quality: qualityWith(
+        cadence: cadence,
+        speed: speed,
+        cadenceSignalDuration: cadenceSignalDuration,
+        gaitSegments: gaitSegments,
+      ),
     );
   }
 
@@ -117,5 +150,67 @@ void main() {
       expect(aggregates.averageCadenceStepsPerMinute, isNull);
       expect(aggregates.averageWalkingSpeedMs, isNull);
     });
+
+    test(
+      'averageCadence is weighted by the exact signal duration behind each '
+      "session's cadence, so a session with 9x more usable signal "
+      'outweighs a plain 100/200 mean',
+      () {
+        final sessions = [
+          recordWith(
+            cadence: 100,
+            cadenceSignalDuration: const Duration(minutes: 1),
+          ),
+          recordWith(
+            cadence: 200,
+            cadenceSignalDuration: const Duration(minutes: 9),
+          ),
+        ];
+
+        expect(
+          sessionHistoryAggregates(sessions).averageCadenceStepsPerMinute,
+          closeTo(190, 1e-9),
+        );
+      },
+    );
+
+    test(
+      'averageWalkingSpeed is weighted by level-walking gait duration, so a '
+      'session with 9x more usable signal outweighs a plain mean',
+      () {
+        final sessions = [
+          recordWith(
+            speed: 1,
+            gaitSegments: gaitSegmentsOf(const Duration(minutes: 1)),
+          ),
+          recordWith(
+            speed: 2,
+            gaitSegments: gaitSegmentsOf(const Duration(minutes: 9)),
+          ),
+        ];
+
+        expect(
+          sessionHistoryAggregates(sessions).averageWalkingSpeedMs,
+          closeTo(1.9, 1e-9),
+        );
+      },
+    );
+
+    test(
+      'a session with a computed value but zero weight duration still '
+      'contributes, at the same nominal weight as an unweighted mean',
+      () {
+        final sessions = [
+          // No cadence signal duration recorded (e.g. an older record).
+          recordWith(cadence: 100),
+          recordWith(cadence: 200),
+        ];
+
+        expect(
+          sessionHistoryAggregates(sessions).averageCadenceStepsPerMinute,
+          150,
+        );
+      },
+    );
   });
 }
