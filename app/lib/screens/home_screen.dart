@@ -4,7 +4,6 @@ import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
 import 'package:gait_sense/blocs/sessions/sessions_state.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
 import 'package:gait_sense/theme/theme_context.dart';
-import 'package:gait_sense/utils/gait_metric_info.dart';
 import 'package:gait_sense/utils/session_summary_format.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -64,33 +63,41 @@ class HomeScreen extends StatelessWidget {
                     'pregled i statistika.',
               )
             else ...[
+              LastSessionCard(
+                session: sessions.first,
+                onTap: () => context.push(
+                  AppRoutes.sessionDetail(sessions.first.id),
+                ),
+              ),
+              SizedBox(height: spacing.md),
+              Text('Ukupna statistika', style: context.textStyles.titleLarge),
+              SizedBox(height: spacing.md),
               MetricGrid(
                 tiles: [
-                  MetricTile(label: 'Sesije', value: '${sessions.length}'),
                   MetricTile(
-                    label: 'Hodanje',
+                    label: 'Ukupan broj sesija',
+                    value: '${sessions.length}',
+                  ),
+                  MetricTile(
+                    label: 'Ukupno vrijeme hoda',
                     value: walking == Duration.zero
                         ? _dash
                         : formatWalkingDurationHr(walking),
                   ),
                   MetricTile(
-                    label: 'Kadenca',
+                    label: 'Prosj. kadenca',
                     value: cadence == null
                         ? _dash
                         : formatCadenceValueHr(cadence),
-                    info: cadenceMetricInfo,
                   ),
                   MetricTile(
-                    label: 'Brzina',
+                    label: 'Prosj. brzina',
                     value: speed == null
                         ? _dash
                         : formatWalkingSpeedValueHr(speed),
-                    info: walkingSpeedMetricInfo,
                   ),
                 ],
               ),
-              SizedBox(height: spacing.md),
-              LastSessionCard(session: sessions.first),
             ],
           ],
         );

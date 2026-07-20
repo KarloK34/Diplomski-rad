@@ -8,7 +8,7 @@ import 'package:gait_sense/theme/theme_context.dart';
 /// of the more specific widgets cover.
 class AppCard extends StatelessWidget {
   /// Wraps [child] in a themed card.
-  const AppCard({required this.child, this.padding, super.key});
+  const AppCard({required this.child, this.padding, this.onTap, super.key});
 
   /// Card content.
   final Widget child;
@@ -16,13 +16,20 @@ class AppCard extends StatelessWidget {
   /// Inner padding; defaults to the standard `spacing.md` inset.
   final EdgeInsetsGeometry? padding;
 
+  /// Called when the card is tapped; the card is inert (and shows no ink
+  /// feedback) when null.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
+    final content = Padding(
+      padding: padding ?? EdgeInsets.all(context.spacing.md),
+      child: child,
+    );
+    if (onTap == null) return Card(child: content);
     return Card(
-      child: Padding(
-        padding: padding ?? EdgeInsets.all(context.spacing.md),
-        child: child,
-      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(onTap: onTap, child: content),
     );
   }
 }

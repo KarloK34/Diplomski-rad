@@ -11,11 +11,15 @@ const String _dash = '–';
 /// walking speed for a single saved session — the per-session counterpart to
 /// the dashboard's cross-session `MetricGrid` averages.
 class LastSessionCard extends StatelessWidget {
-  /// Creates a card summarizing [session].
-  const LastSessionCard({required this.session, super.key});
+  /// Creates a card summarizing [session], opening its detail view via
+  /// [onTap] when given.
+  const LastSessionCard({required this.session, this.onTap, super.key});
 
   /// The session to summarize — normally the most recent saved one.
   final SessionSummaryRecord session;
+
+  /// Called when the card is tapped; the card is inert when null.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +31,7 @@ class LastSessionCard extends StatelessWidget {
 
     return InfoCard(
       title: 'Zadnja sesija',
+      onTap: onTap,
       rows: [
         LabeledRow(
           label: 'Datum',

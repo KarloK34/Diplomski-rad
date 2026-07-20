@@ -8,11 +8,13 @@ import 'package:gait_sense/widgets/cards/app_card.dart';
 /// `NavigationListTile` entries).
 class InfoCard extends StatelessWidget {
   /// Creates a card titled [title] with [rows] stacked beneath it, with an
-  /// optional [info] button explaining the section.
+  /// optional [info] button explaining the section and an optional [onTap]
+  /// to make the whole card navigable.
   const InfoCard({
     required this.title,
     required this.rows,
     this.info,
+    this.onTap,
     super.key,
   });
 
@@ -25,9 +27,14 @@ class InfoCard extends StatelessWidget {
   /// Explanation shown via an info button next to [title], if any.
   final MetricInfo? info;
 
+  /// Called when the card is tapped; shows a trailing chevron and makes the
+  /// card inert (no ink feedback) when null.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     return AppCard(
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -37,9 +44,9 @@ class InfoCard extends StatelessWidget {
                 child: Text(title, style: context.textStyles.titleMedium),
               ),
               if (info case final info?) MetricInfoButton(info: info),
+              if (onTap != null) const Icon(Icons.chevron_right),
             ],
           ),
-          SizedBox(height: context.spacing.sm),
           ...rows,
         ],
       ),
