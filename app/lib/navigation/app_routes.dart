@@ -55,6 +55,18 @@ abstract final class AppRoutes {
   /// Settings path, nested under the profile tab.
   static const profileSettings = '/profile/$settingsSegment';
 
+  /// Relative path segment for [profilePrivacy], nested under [profile].
+  static const privacySegment = 'privacy';
+
+  /// Privacy explanation path, nested under the profile tab.
+  static const profilePrivacy = '/profile/$privacySegment';
+
+  /// Relative path segment for [profileAbout], nested under [profile].
+  static const aboutSegment = 'about';
+
+  /// App/model info path, nested under the profile tab.
+  static const profileAbout = '/profile/$aboutSegment';
+
   /// Shown while sign-in status is not yet known.
   static const splash = '/splash';
 
@@ -100,6 +112,12 @@ enum AppSubRoute {
 
   /// Settings screen reached from [AppTab.profile].
   profileSettings,
+
+  /// Privacy screen reached from [AppTab.profile].
+  profilePrivacy,
+
+  /// About screen reached from [AppTab.profile].
+  profileAbout,
 
   /// Saved-session detail, nested under [AppTab.sessions].
   sessionDetail,

@@ -43,6 +43,14 @@ String formatSegmentCountHr(int count) {
   return '$count $noun';
 }
 
+/// Croatian count agreement for the noun "prozor" (window).
+String windowCountLabelHr(int count) {
+  final ones = count % 10;
+  final teens = count % 100;
+  final noun = ones == 1 && teens != 11 ? 'prozor' : 'prozora';
+  return '$count $noun';
+}
+
 /// Formats [duration] as a clock once it passes a minute, or as fractional
 /// seconds below that.
 String formatDurationSecondsHr(Duration duration) {

@@ -593,13 +593,10 @@ Duration _medianPeakInterval(List<SensorSample> samples, List<_Peak> peaks) {
     for (var i = 1; i < peaks.length; i++)
       samples[peaks[i].sampleIndex].timestamp
           .difference(samples[peaks[i - 1].sampleIndex].timestamp)
-          .inMicroseconds,
-  ]..sort();
-  final middle = intervals.length ~/ 2;
-  final median = intervals.length.isOdd
-      ? intervals[middle]
-      : ((intervals[middle - 1] + intervals[middle]) / 2).round();
-  return Duration(microseconds: median);
+          .inMicroseconds
+          .toDouble(),
+  ];
+  return Duration(microseconds: stats.median(intervals).round());
 }
 
 _PeriodEstimate? _estimateDominantPeriod(

@@ -6,6 +6,7 @@ import 'package:gait_sense/models/gait_segment.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
+import 'package:gait_sense/utils/gait_quality_format.dart';
 import 'package:gait_sense/utils/gait_segments.dart';
 import 'package:gait_sense/utils/gait_signal_segments.dart';
 import 'package:gait_sense/utils/gait_temporal_parameters.dart';

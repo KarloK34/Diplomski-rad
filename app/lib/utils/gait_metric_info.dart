@@ -50,7 +50,8 @@ const MetricInfo cadenceMetricInfo = MetricInfo(
   title: 'Kadenca',
   description:
       'Broj koraka u minuti, procijenjen iz periodičnosti signala '
-      'akcelerometra tijekom hodanja po ravnom.',
+      'akcelerometra tijekom hodanja po ravnom, hodanja stepenicama ili '
+      'trčanja.',
 );
 
 /// Explanation for the detected step count.
@@ -107,6 +108,7 @@ const MetricInfo walkingSpeedMetricInfo = MetricInfo(
 const MetricInfo stepLengthMetricInfo = MetricInfo(
   title: 'Duljina koraka',
   description:
-      'Gruba procjena duljine jednog koraka, izračunata iz kadence i '
-      'visine korisnika pomoću modela obrnutog njihala.',
+      'Gruba procjena duljine jednog koraka, izračunata iz procijenjene '
+      'vertikalne oscilacije tijela tijekom koraka i visine korisnika '
+      'pomoću modela obrnutog njihala.',
 );

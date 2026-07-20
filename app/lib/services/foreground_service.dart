@@ -149,6 +149,9 @@ class _HarTaskHandler extends TaskHandler {
     _recordingStartedAt = DateTime.now();
     _predictionCount = 0;
     _lastLabel = '—';
+    // The smoother's rolling label context must not carry probe-phase raw
+    // labels into the first real-session predictions' majority vote.
+    _smoother.reset();
     // The extractor's sample counter (baked into every FeatureWindow's, and
     // later ActivityPrediction's, endSampleIndex) must restart here too: it
     // has been counting probe/countdown samples since onStart, but

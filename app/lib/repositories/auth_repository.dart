@@ -79,9 +79,19 @@ class AuthRepository {
       email: email,
       password: password,
     );
-    await _firebaseAuth.currentUser?.updateDisplayName(
-      '${firstName.trim()} ${lastName.trim()}',
-    );
+    await updateDisplayName('${firstName.trim()} ${lastName.trim()}');
+  }
+
+  /// Updates the signed-in account's display name.
+  Future<void> updateDisplayName(String displayName) async {
+    await _firebaseAuth.currentUser?.updateDisplayName(displayName.trim());
+  }
+
+  /// Sends a password-reset link to [email]. Only meaningful for accounts
+  /// signed in with the password provider — Google-only accounts have no
+  /// password to reset.
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _firebaseAuth.sendPasswordResetEmail(email: email);
   }
 
   /// Signs in via a Google account, then exchanges the resulting ID token for

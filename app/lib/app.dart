@@ -6,6 +6,7 @@ import 'package:gait_sense/blocs/onboarding/onboarding_cubit.dart';
 import 'package:gait_sense/blocs/pending_sessions/pending_sessions_cubit.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
 import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
+import 'package:gait_sense/blocs/theme/theme_cubit.dart';
 import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
 import 'package:gait_sense/repositories/session_repository.dart';
@@ -75,12 +76,16 @@ class _GaitSenseAppState extends State<GaitSenseApp> {
           BlocProvider<PendingSessionsCubit>.value(
             value: _dependencies.pendingSessionsCubit,
           ),
+          BlocProvider<ThemeCubit>.value(value: _dependencies.themeCubit),
         ],
-        child: MaterialApp.router(
-          title: 'Gait Sense',
-          theme: GaitSenseTheme.light(),
-          darkTheme: GaitSenseTheme.dark(),
-          routerConfig: _dependencies.router,
+        child: BlocBuilder<ThemeCubit, ThemeMode>(
+          builder: (context, themeMode) => MaterialApp.router(
+            title: 'Gait Sense',
+            theme: GaitSenseTheme.light(),
+            darkTheme: GaitSenseTheme.dark(),
+            themeMode: themeMode,
+            routerConfig: _dependencies.router,
+          ),
         ),
       ),
     );

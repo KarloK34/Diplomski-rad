@@ -4,6 +4,7 @@
 /// `widgets/**` files.
 library;
 
+export 'avatars/user_avatar.dart';
 export 'buttons/google_sign_in_button.dart';
 export 'buttons/hold_to_confirm_fab.dart';
 export 'buttons/metric_info_button.dart';
@@ -30,11 +31,13 @@ export 'charts/activity_timeline_chart.dart';
 export 'charts/chart_legend.dart';
 export 'charts/metric_trend_chart.dart';
 export 'dialogs/confirmation_dialog.dart';
+export 'dialogs/edit_name_dialog.dart';
 export 'dialogs/metric_info_sheet.dart';
 export 'forms/email_field.dart';
 export 'forms/height_field.dart';
 export 'forms/name_field.dart';
 export 'forms/password_field.dart';
+export 'forms/theme_mode_selector.dart';
 export 'indicators/onboarding_dots_indicator.dart';
 export 'indicators/pill.dart';
 export 'indicators/prediction_ticker.dart';
@@ -42,6 +45,8 @@ export 'indicators/session_limit_bar.dart';
 export 'layout/app_logo.dart';
 export 'layout/classification_quality_section.dart';
 export 'layout/gait_parameters_section.dart';
+export 'layout/info_screen_scaffold.dart';
+export 'layout/info_section.dart';
 export 'layout/metric_grid.dart';
 export 'layout/onboarding_step_view.dart';
 export 'layout/recording_countdown_panel.dart';

@@ -375,8 +375,17 @@ class SessionQualitySummary extends Equatable {
 /// The mean uses segment duration as a project display rule: a longer raw
 /// signal contributes proportionally more than a shorter one. This aggregation
 /// rule is not clinically validated.
+///
+/// [precomputedResults] lets a caller that already ran [analyzeGaitCadence]
+/// for some of [signalSegments] — e.g. [computeSessionQualitySummary], which
+/// needs cadence for the level-walking subset regardless, to feed
+/// [summarizeGaitWalkingSpeed] — supply those results instead of recomputing
+/// cadence for the same raw samples a second time. Only honoured for segments
+/// analyzed with the default cadence parameters, since precomputed entries
+/// carry no record of which parameters produced them.
 GaitCadenceSummary summarizeGaitCadence(
   List<GaitSignalSegment> signalSegments, {
+  Map<(int, int), GaitCadenceResult> precomputedResults = const {},
   Duration minimumDuration = defaultCadenceMinimumDuration,
   double lowPassCutoffHz = defaultCadenceLowPassCutoffHz,
   double minimumCadenceStepsPerMinute = defaultCadenceMinimumStepsPerMinute,
@@ -427,18 +436,19 @@ GaitCadenceSummary summarizeGaitCadence(
 
   final results = [
     for (final signal in sampledSignals)
-      analyzeGaitCadence(
-        signal,
-        minimumDuration: minimumDuration,
-        lowPassCutoffHz: lowPassCutoffHz,
-        minimumCadenceStepsPerMinute: minimumCadenceStepsPerMinute,
-        maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
-        minimumPeakIntervalFraction: minimumPeakIntervalFraction,
-        peakThresholdStdMultiplier: peakThresholdStdMultiplier,
-        minimumPeriodicity: minimumPeriodicity,
-        maximumEstimateDisagreement: maximumEstimateDisagreement,
-        minimumDetectedSteps: minimumDetectedSteps,
-      ),
+      _precomputedResultFor(signal, precomputedResults) ??
+          analyzeGaitCadence(
+            signal,
+            minimumDuration: minimumDuration,
+            lowPassCutoffHz: lowPassCutoffHz,
+            minimumCadenceStepsPerMinute: minimumCadenceStepsPerMinute,
+            maximumCadenceStepsPerMinute: maximumCadenceStepsPerMinute,
+            minimumPeakIntervalFraction: minimumPeakIntervalFraction,
+            peakThresholdStdMultiplier: peakThresholdStdMultiplier,
+            minimumPeriodicity: minimumPeriodicity,
+            maximumEstimateDisagreement: maximumEstimateDisagreement,
+            minimumDetectedSteps: minimumDetectedSteps,
+          ),
   ];
   final computedResults = [
     for (final result in results)
@@ -498,6 +508,18 @@ GaitCadenceSummary summarizeGaitCadence(
     confidence: summaryConfidence,
     confidenceReason: confidenceReason,
   );
+}
+
+/// Looks up a cached cadence result for [signal] by its raw-sample index
+/// range, or null when [signal] has no sample bounds or no cached entry.
+GaitCadenceResult? _precomputedResultFor(
+  GaitSignalSegment signal,
+  Map<(int, int), GaitCadenceResult> precomputedResults,
+) {
+  final start = signal.startSampleIndex;
+  final end = signal.endSampleIndexExclusive;
+  if (start == null || end == null) return null;
+  return precomputedResults[(start, end)];
 }
 
 GaitCadenceConfidence _lowestCadenceConfidence(
@@ -741,11 +763,20 @@ SessionQualitySummary computeSessionQualitySummary(
     gaitSegments: cadenceGaitSegments,
   );
 
-  final gaitCadence = summarizeGaitCadence(cadenceSignalSegments);
+  // Computed once and reused by summarizeGaitCadence below: cadenceGaitSegments
+  // is a superset of gaitSegments whenever no stair/jog run interrupts a walk
+  // (see defaultLocomotionLabels' doc comment), so without this reuse the
+  // shared segments would run analyzeGaitCadence twice.
+  final gaitCadenceResults = _cadenceResultsFor(gaitSignalSegments);
+
+  final gaitCadence = summarizeGaitCadence(
+    cadenceSignalSegments,
+    precomputedResults: gaitCadenceResults,
+  );
   final gaitWalkingSpeed = userHeightCm != null
       ? summarizeGaitWalkingSpeed(
           gaitSignalSegments,
-          cadenceResults: _cadenceResultsFor(gaitSignalSegments),
+          cadenceResults: gaitCadenceResults.values.toList(),
           userHeightCm: userHeightCm,
         )
       : const GaitWalkingSpeedSummary.noHeight();
@@ -768,23 +799,29 @@ SessionQualitySummary computeSessionQualitySummary(
   );
 }
 
-/// Runs [analyzeGaitCadence] on each sampled segment and returns the results
-/// in the same order as the sampled subset of [signalSegments]. Used internally
-/// so [summarizeGaitWalkingSpeed] can reuse cadence values without recomputing.
-List<GaitCadenceResult> _cadenceResultsFor(
+/// Runs [analyzeGaitCadence] on each sampled segment of [signalSegments],
+/// keyed by its raw-sample index range (insertion order matches the sampled
+/// subset of [signalSegments]). [summarizeGaitWalkingSpeed] consumes the
+/// values in that same order, and [summarizeGaitCadence] looks results up by
+/// key via its `precomputedResults` parameter — both reuse this single pass
+/// instead of calling [analyzeGaitCadence] again for the same raw samples.
+Map<(int, int), GaitCadenceResult> _cadenceResultsFor(
   List<GaitSignalSegment> signalSegments,
 ) {
-  return [
+  return {
     for (final segment in signalSegments)
-      if (segment.hasSamples) analyzeGaitCadence(segment),
-  ];
+      if (segment.hasSamples)
+        (segment.startSampleIndex!, segment.endSampleIndexExclusive!):
+            analyzeGaitCadence(segment),
+  };
 }
 
 /// Duration-weighted walking-speed and step-length summary across all suitable
 /// gait signal segments.
 ///
-/// [cadenceResults] must be the output of [_cadenceResultsFor] for the same
-/// [signalSegments] — they are paired by index across sampled segments only.
+/// [cadenceResults] must be
+/// `_cadenceResultsFor(signalSegments).values.toList()` — they are paired by
+/// index across sampled segments only.
 GaitWalkingSpeedSummary summarizeGaitWalkingSpeed(
   List<GaitSignalSegment> signalSegments, {
   required List<GaitCadenceResult> cadenceResults,
@@ -875,12 +912,4 @@ GaitWalkingSpeedSummary summarizeGaitWalkingSpeed(
     status: GaitWalkingSpeedStatus.computed,
     reason: null,
   );
-}
-
-/// Croatian count agreement for the noun "prozor" (window).
-String windowCountLabelHr(int count) {
-  final ones = count % 10;
-  final teens = count % 100;
-  final noun = ones == 1 && teens != 11 ? 'prozor' : 'prozora';
-  return '$count $noun';
 }

@@ -9,7 +9,6 @@ class GaitSegmentRow extends StatelessWidget {
   const GaitSegmentRow({
     required this.timeRangeLabel,
     required this.windowCountLabel,
-    required this.labelCountsLabel,
     super.key,
   });
 
@@ -18,9 +17,6 @@ class GaitSegmentRow extends StatelessWidget {
 
   /// Pre-formatted window count.
   final String windowCountLabel;
-
-  /// Pre-formatted per-label window counts.
-  final String labelCountsLabel;
 
   @override
   Widget build(BuildContext context) {

@@ -145,7 +145,6 @@ class GaitParametersSection extends StatelessWidget {
             GaitSegmentRow(
               timeRangeLabel: formatGaitSegmentTimeRange(segment),
               windowCountLabel: windowCountLabelHr(segment.windows),
-              labelCountsLabel: formatLabelCounts(segment.labelCounts),
             ),
         ],
       ],

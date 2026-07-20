@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
+import 'package:gait_sense/utils/gait_quality_format.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 import 'package:gait_sense/utils/session_summary_format.dart';
 import 'package:gait_sense/widgets/lists/collapsible_list.dart';

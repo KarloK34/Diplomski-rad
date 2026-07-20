@@ -8,6 +8,7 @@ import 'package:gait_sense/blocs/pending_sessions/pending_sessions_cubit.dart';
 import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
 import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
 import 'package:gait_sense/blocs/sessions/sessions_gate.dart';
+import 'package:gait_sense/blocs/theme/theme_cubit.dart';
 import 'package:gait_sense/firebase_options.dart';
 import 'package:gait_sense/navigation/app_router.dart';
 import 'package:gait_sense/navigation/go_router_refresh_stream.dart';
@@ -15,6 +16,7 @@ import 'package:gait_sense/repositories/auth_repository.dart';
 import 'package:gait_sense/repositories/onboarding_repository.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
 import 'package:gait_sense/repositories/session_repository.dart';
+import 'package:gait_sense/repositories/theme_preference_repository.dart';
 import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/services/gait_foreground_service.dart';
 import 'package:go_router/go_router.dart';
@@ -43,6 +45,10 @@ class AppDependencies {
   /// Persists per-account onboarding completion.
   final OnboardingRepository onboardingRepository = OnboardingRepository();
 
+  /// Persists the device's light/dark/system theme choice.
+  final ThemePreferenceRepository themePreferenceRepository =
+      ThemePreferenceRepository();
+
   /// The app's [AuthRepository]; overridden by tests via the constructor.
   final AuthRepository authRepository;
 
@@ -69,6 +75,11 @@ class AppDependencies {
   /// an explicit save/discard decision.
   late final PendingSessionsCubit pendingSessionsCubit = PendingSessionsCubit(
     repository: sessionLogRepository,
+  );
+
+  /// Tracks the device's light/dark/system theme choice.
+  late final ThemeCubit themeCubit = ThemeCubit(
+    repository: themePreferenceRepository,
   );
 
   late final OnboardingGate _onboardingGate = OnboardingGate(
@@ -133,6 +144,7 @@ class AppDependencies {
     unawaited(recordingSessionBloc.close());
     unawaited(sessionsCubit.close());
     unawaited(pendingSessionsCubit.close());
+    unawaited(themeCubit.close());
     service.dispose();
   }
 }

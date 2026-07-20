@@ -4,10 +4,12 @@ import 'package:gait_sense/blocs/recording_session/recording_session_bloc.dart';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/navigation/app_navigator_keys.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
+import 'package:gait_sense/screens/about_screen.dart';
 import 'package:gait_sense/screens/home_screen.dart';
 import 'package:gait_sense/screens/live_har/live_har_screen.dart';
 import 'package:gait_sense/screens/live_har/recording_instructions_screen.dart';
-import 'package:gait_sense/screens/profile_screen.dart';
+import 'package:gait_sense/screens/privacy_screen.dart';
+import 'package:gait_sense/screens/profile/profile_screen.dart';
 import 'package:gait_sense/screens/session_detail/session_detail_screen.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:gait_sense/screens/sessions/sessions_screen.dart';
@@ -125,6 +127,18 @@ StatefulShellBranch _profileBranch() => StatefulShellBranch(
           name: AppSubRoute.profileSettings.name,
           parentNavigatorKey: rootNavigatorKey,
           builder: (context, state) => const SettingsScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.privacySegment,
+          name: AppSubRoute.profilePrivacy.name,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const PrivacyScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.aboutSegment,
+          name: AppSubRoute.profileAbout.name,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const AboutScreen(),
         ),
       ],
     ),

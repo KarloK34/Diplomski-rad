@@ -21,9 +21,11 @@ dependencies:
   flutter_svg: ^2.3.0
   go_router: ^17.3.0
   google_sign_in: ^7.2.0
+  package_info_plus: ^10.2.1
   path_provider: ^2.1.5
   sensors_plus: ^7.0.0
   share_plus: ^13.1.0
+  shared_preferences: ^2.5.5
   tflite_flutter: ^0.12.1
   vibration: ^3.2.0
 
@@ -50,6 +52,11 @@ dependencies:
 #  - file_selector backs the debug "import session" action (SessionImportAction)
 #    that loads an exported session JSON from disk. Picked over file_picker,
 #    which pins win32 versions incompatible with share_plus on this project.
+#  - package_info_plus reads the app version/build number shown on the About
+#    screen.
+#  - shared_preferences backs ThemePreferenceRepository — the light/dark/system
+#    toggle is a device display preference, not account data, so it stays local
+#    rather than going through UserProfileRepository/Firestore.
 
 dev_dependencies:
   flutter_test:
