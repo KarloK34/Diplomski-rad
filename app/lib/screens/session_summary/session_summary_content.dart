@@ -12,13 +12,15 @@ import 'package:gait_sense/screens/session_summary/session_summary_computation.d
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
 import 'package:gait_sense/utils/session_export.dart';
+import 'package:gait_sense/utils/session_metric_info.dart';
 import 'package:gait_sense/utils/session_summary.dart';
 import 'package:gait_sense/utils/session_summary_format.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 
-/// Renders the computed session summary: overview header, quality section,
-/// per-class totals, timeline, and the save/export actions.
+/// Renders the computed session summary: overview header, gait parameters,
+/// classification quality, per-class totals, timeline, and the save/export
+/// actions.
 ///
 /// Nothing is persisted until the user taps save or export; backing out
 /// without doing either asks for confirmation, since it discards the
@@ -85,7 +87,9 @@ class _SessionSummaryContentState extends State<SessionSummaryContent> {
                     predictionCount: session.predictions.length,
                   ),
                   SizedBox(height: spacing.lg),
-                  SessionQualitySection(summary: data.quality),
+                  GaitParametersSection(summary: data.quality),
+                  SizedBox(height: spacing.lg),
+                  ClassificationQualitySection(summary: data.quality),
                   if (!hasData) ...[
                     SizedBox(height: spacing.lg),
                     const Text('Nema predikcija u ovoj sesiji.'),
@@ -93,6 +97,7 @@ class _SessionSummaryContentState extends State<SessionSummaryContent> {
                     SizedBox(height: spacing.lg),
                     InfoCard(
                       title: 'Udio po aktivnosti',
+                      info: activityTotalsMetricInfo,
                       rows: [
                         for (final total in data.totals)
                           ActivityTotalRow(
@@ -104,6 +109,7 @@ class _SessionSummaryContentState extends State<SessionSummaryContent> {
                     SizedBox(height: spacing.lg),
                     InfoCard(
                       title: 'Vremenski slijed',
+                      info: timelineMetricInfo,
                       rows: [TimelineSegmentList(timeline: data.timeline)],
                     ),
                   ],

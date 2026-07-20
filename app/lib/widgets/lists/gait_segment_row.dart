@@ -38,7 +38,6 @@ class GaitSegmentRow extends StatelessWidget {
             trailingLabel: windowCountLabel,
             style: muted,
           ),
-          Text(labelCountsLabel, style: muted),
         ],
       ),
     );

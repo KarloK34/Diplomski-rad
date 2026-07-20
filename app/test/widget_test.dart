@@ -140,6 +140,13 @@ void main() {
   testWidgets('session summary shows experimental cadence when computed', (
     tester,
   ) async {
+    // Splitting the quality section into classification-quality and
+    // gait-parameters cards pushes cadence further down than the default
+    // test viewport, so it must be enlarged for the rows below to lay out.
+    tester.view.physicalSize = const Size(1000, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final start = DateTime.utc(2026, 1, 1, 12);
 
     SensorSample sampleAt(int index) {
@@ -170,7 +177,7 @@ void main() {
 
     // A long (~18 s) level-walking session so cadence and the mean
     // step/stride-time rows render. Variability (CV) rows are no longer shown
-    // at all (see session_quality_section.dart), so they are not asserted.
+    // at all (see gait_parameters_section.dart), so they are not asserted.
     final session = SessionLog(
       startedAt: start,
       stoppedAt: start.add(const Duration(seconds: 18)),
@@ -195,30 +202,18 @@ void main() {
       _withUserProfile(SessionSummaryScreen(session: session)),
     );
 
-    await pumpUntilFound(tester, find.text('Kadenca (eksperimentalno)'));
+    await pumpUntilFound(tester, find.text('Kadenca'));
 
-    expect(find.text('Kadenca (eksperimentalno)'), findsOneWidget);
+    expect(find.text('Kadenca'), findsOneWidget);
     expect(find.text('120 koraka/min'), findsOneWidget);
-    expect(
-      find.text('Detektirani koraci (eksperimentalno)'),
-      findsOneWidget,
-    );
+    expect(find.text('Detektirani koraci'), findsOneWidget);
     expect(find.text('Pouzdanost procjene'), findsOneWidget);
     expect(find.text('Visoka'), findsOneWidget);
-    expect(
-      find.text('Prosječno vrijeme koraka (eksperimentalno)'),
-      findsOneWidget,
-    );
+    expect(find.text('Prosječno vrijeme koraka'), findsOneWidget);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Prosječno vrijeme iskoraka (eksperimentalno)'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Regularnost signala (indikator kvalitete)'),
-      findsOneWidget,
-    );
+    expect(find.text('Prosječno vrijeme iskoraka'), findsOneWidget);
+    expect(find.text('Regularnost signala'), findsOneWidget);
     expect(find.text('Razlog'), findsNothing);
   });
 
@@ -226,6 +221,13 @@ void main() {
     'session summary renders cadence and mean step time for a short '
     '(5-window) recording, with no CV rows',
     (tester) async {
+      // Splitting the quality section into classification-quality and
+      // gait-parameters cards pushes cadence further down than the default
+      // test viewport, so it must be enlarged for the rows below to lay out.
+      tester.view.physicalSize = const Size(1000, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       final start = DateTime.utc(2026, 1, 1, 12);
 
       SensorSample sampleAt(int index) {
@@ -257,7 +259,7 @@ void main() {
       // Only the app-level minimum of 5 "wlk" windows -- an analysis window
       // of ~7.7 s. Cadence and mean step time still render at this floor; CV
       // rows are never shown regardless of recording length (see
-      // session_quality_section.dart), so this is not asserting a
+      // gait_parameters_section.dart), so this is not asserting a
       // length-dependent gate -- only that the non-CV rows survive at the
       // shortest recording the app will analyze.
       final session = SessionLog(
@@ -278,33 +280,28 @@ void main() {
         _withUserProfile(SessionSummaryScreen(session: session)),
       );
 
-      await pumpUntilFound(tester, find.text('Kadenca (eksperimentalno)'));
+      await pumpUntilFound(tester, find.text('Kadenca'));
 
-      expect(find.text('Kadenca (eksperimentalno)'), findsOneWidget);
-      expect(
-        find.text('Prosječno vrijeme koraka (eksperimentalno)'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Varijabilnost vremena koraka (eksperimentalno)'),
-        findsNothing,
-      );
-      expect(
-        find.text('Varijabilnost kadence (eksperimentalno)'),
-        findsNothing,
-      );
+      expect(find.text('Kadenca'), findsOneWidget);
+      expect(find.text('Prosječno vrijeme koraka'), findsOneWidget);
+      expect(find.text('Varijabilnost vremena koraka'), findsNothing);
+      expect(find.text('Varijabilnost kadence'), findsNothing);
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
       await tester.pumpAndSettle();
-      expect(
-        find.text('Varijabilnost vremena iskoraka (eksperimentalno)'),
-        findsNothing,
-      );
+      expect(find.text('Varijabilnost vremena iskoraka'), findsNothing);
     },
   );
 
   testWidgets(
     'session summary marks step count unavailable when not computed',
     (tester) async {
+      // Splitting the quality section into classification-quality and
+      // gait-parameters cards pushes this row further down than the default
+      // test viewport, so it must be enlarged for it to lay out.
+      tester.view.physicalSize = const Size(1000, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       final start = DateTime.utc(2026, 1, 1, 12);
 
       ActivityPrediction predictionAt(int secondsAfterStart) {
@@ -329,21 +326,12 @@ void main() {
         _withUserProfile(SessionSummaryScreen(session: session)),
       );
 
-      await pumpUntilFound(
-        tester,
-        find.text('Detektirani koraci (eksperimentalno)'),
-      );
+      await pumpUntilFound(tester, find.text('Detektirani koraci'));
 
-      expect(
-        find.text('Detektirani koraci (eksperimentalno)'),
-        findsOneWidget,
-      );
+      expect(find.text('Detektirani koraci'), findsOneWidget);
       expect(find.text('Nije dostupno'), findsOneWidget);
       expect(find.text('Razlog'), findsOneWidget);
-      expect(
-        find.text('Prosječno vrijeme koraka (eksperimentalno)'),
-        findsNothing,
-      );
+      expect(find.text('Prosječno vrijeme koraka'), findsNothing);
     },
   );
 

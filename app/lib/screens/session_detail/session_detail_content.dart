@@ -8,12 +8,14 @@ import 'package:gait_sense/repositories/session_log_repository.dart';
 import 'package:gait_sense/repositories/session_repository.dart';
 import 'package:gait_sense/theme/theme_context.dart';
 import 'package:gait_sense/utils/session_export.dart';
+import 'package:gait_sense/utils/session_metric_info.dart';
 import 'package:gait_sense/utils/session_summary_format.dart';
 import 'package:gait_sense/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 /// Read-only detail view of a saved session, rebuilt from its persisted
-/// summary: overview, activity charts, timeline, and the gait-quality section.
+/// summary: overview, gait parameters, classification quality, activity
+/// charts, and timeline.
 ///
 /// Reuses the same presentational widgets as the post-recording summary so a
 /// stored session renders identically on any device, plus charts for the
@@ -70,15 +72,21 @@ class _SessionDetailContentState extends State<SessionDetailContent> {
             duration: record.duration,
             predictionCount: record.predictionCount,
           ),
+          SizedBox(height: spacing.lg),
+          GaitParametersSection(summary: record.quality),
+          SizedBox(height: spacing.lg),
+          ClassificationQualitySection(summary: record.quality),
           if (hasData) ...[
             SizedBox(height: spacing.lg),
             ChartCard(
               title: 'Udio po aktivnosti',
+              info: activityTotalsMetricInfo,
               child: ActivityDistributionChart(totals: record.classTotals),
             ),
             SizedBox(height: spacing.lg),
             ChartCard(
               title: 'Vremenski slijed',
+              info: timelineMetricInfo,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -88,10 +96,7 @@ class _SessionDetailContentState extends State<SessionDetailContent> {
                 ],
               ),
             ),
-          ],
-          SizedBox(height: spacing.lg),
-          SessionQualitySection(summary: record.quality),
-          if (!hasData) ...[
+          ] else ...[
             SizedBox(height: spacing.lg),
             const Text('Nema predikcija u ovoj sesiji.'),
           ],

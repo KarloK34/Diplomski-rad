@@ -131,7 +131,7 @@ void _printAppSummary(
   }
 
   stdout
-    ..writeln('Pouzdanost sesije:')
+    ..writeln('Kvaliteta klasifikacije:')
     ..writeln(
       '  Raw HAR rezultat: ${formatLabelCounts(quality.rawLabelWindowCounts)}',
     )
@@ -156,6 +156,7 @@ void _printAppSummary(
       '  Trajanje stabilne lokomocije: '
       '${formatDurationSecondsHr(quality.stableLocomotionDuration)}',
     )
+    ..writeln('Parametri hoda:')
     ..writeln('  Kandidati za analizu hoda: $gaitCandidatesLabel')
     ..writeln(
       '  Trajanje stabilnog hodanja po ravnom: '

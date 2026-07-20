@@ -182,23 +182,26 @@ void main() {
     expect(find.text('Usporedba aktivnosti'), findsOneWidget);
   });
 
-  testWidgets('Session detail renders charts and the quality section', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1000, 2600);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'Session detail renders charts, classification quality, and gait '
+    'parameters',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: GaitSenseTheme.light(),
-        home: SessionDetailContent(record: sessions.first),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: GaitSenseTheme.light(),
+          home: SessionDetailContent(record: sessions.first),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Udio po aktivnosti'), findsOneWidget);
-    expect(find.text('Vremenski slijed'), findsOneWidget);
-    expect(find.text('Pouzdanost sesije'), findsOneWidget);
-  });
+      expect(find.text('Udio po aktivnosti'), findsOneWidget);
+      expect(find.text('Vremenski slijed'), findsOneWidget);
+      expect(find.text('Kvaliteta klasifikacije'), findsOneWidget);
+      expect(find.text('Parametri hoda'), findsOneWidget);
+    },
+  );
 }

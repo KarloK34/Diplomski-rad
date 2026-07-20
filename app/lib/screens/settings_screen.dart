@@ -87,7 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Koristi se za procjenu duljine koraka i brzine hoda '
-                      'inverted pendulum metodom (Zijlstra & Hof, 2003).',
+                      'metodom obrnutog njihala.',
                       style: context.textStyles.bodySmall?.copyWith(
                         color: context.colors.onSurfaceVariant,
                       ),
