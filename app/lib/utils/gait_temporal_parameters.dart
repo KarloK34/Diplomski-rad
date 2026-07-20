@@ -33,8 +33,7 @@ const double defaultTemporalIntervalUpperMedianRatio = 1.5;
 /// half of that range -- as a conservative display gate; the exact value is a
 /// project heuristic, not a clinically validated cutoff.
 ///
-/// Both [GaitTemporalParameters.hasReliableStepTimeVariability] and
-/// [GaitTemporalParameters.hasReliableStrideTimeVariability] compare against
+/// A CV estimate should be gated on
 /// [GaitTemporalParameters.strideIntervalCount], not
 /// [GaitTemporalParameters.stepIntervalCount]: the two are direct step vs.
 /// stride views of the same underlying detected events (stride count is
@@ -140,30 +139,16 @@ class GaitTemporalParameters extends Equatable {
 
   /// Autocorrelation-based regularity score inherited from cadence estimation.
   ///
-  /// The periodicity-based interpretation follows Wu and Urbanek, "Application
-  /// of de-shape synchrosqueezing to estimate gait cadence from a single-sensor
-  /// accelerometer placed in different body locations", Physiological
-  /// Measurement, 2023, https://doi.org/10.1088/1361-6579/accefe. The app-level
-  /// score should be treated as an experimental signal-quality descriptor.
+  /// Using the normalized autocorrelation of the acceleration signal at the
+  /// dominant gait period as a step/stride *regularity* descriptor follows
+  /// Moe-Nilssen and Helbostad, "Estimation of gait cycle characteristics by
+  /// trunk accelerometry", Journal of Biomechanics, 2004,
+  /// https://doi.org/10.1016/S0021-9290(03)00233-1, who derive gait regularity
+  /// and symmetry from the unbiased autocorrelation of trunk acceleration. The
+  /// value here is the periodicity produced by the cadence autocorrelation
+  /// (`gait_cadence.dart`), so it is an app-level, experimental signal-quality
+  /// descriptor rather than the full Moe-Nilssen & Helbostad regularity index.
   final double? gaitRegularity;
-
-  /// Whether [stepTimeCoefficientOfVariation] and
-  /// [instantCadenceCoefficientOfVariation] rest on enough full gait cycles
-  /// to be a meaningful variability estimate rather than detector noise.
-  ///
-  /// See [defaultTemporalVariabilityMinimumStrideIntervals] for why this
-  /// compares [strideIntervalCount] (not [stepIntervalCount]) against that
-  /// threshold, and for the literature behind the threshold value. Below this
-  /// gate, callers should hide the CV figures or label them unreliable rather
-  /// than display them at face value.
-  bool get hasReliableStepTimeVariability =>
-      strideIntervalCount >= defaultTemporalVariabilityMinimumStrideIntervals;
-
-  /// Whether [strideTimeCoefficientOfVariation] rests on enough full gait
-  /// cycles to be a meaningful variability estimate rather than detector
-  /// noise. See [hasReliableStepTimeVariability].
-  bool get hasReliableStrideTimeVariability =>
-      strideIntervalCount >= defaultTemporalVariabilityMinimumStrideIntervals;
 
   @override
   List<Object?> get props => [

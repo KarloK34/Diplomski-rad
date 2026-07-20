@@ -504,9 +504,13 @@ void main() {
       expect(summary.gaitCadence.status, GaitCadenceStatus.computed);
       expect(summary.gaitCadence.reason, isNull);
       expect(summary.gaitCadence.confidence, GaitCadenceConfidence.high);
-      expect(summary.gaitCadence.totalStepCount, 15);
+      // periodicSamples' bump peaks fall at sample index 6.25 + 25k (from
+      // its 2 Hz sin argument and 20 ms sample spacing); within this
+      // signal's analysis window [50, 434) that is k = 2..17 -- 16 peaks,
+      // not 15.
+      expect(summary.gaitCadence.totalStepCount, 16);
       expect(summary.gaitCadence.temporalParameters, isNotNull);
-      expect(summary.gaitCadence.temporalParameters!.stepIntervalCount, 14);
+      expect(summary.gaitCadence.temporalParameters!.stepIntervalCount, 15);
       expect(
         summary.gaitCadence.temporalParameters!.meanStepTime,
         closeToDuration(const Duration(milliseconds: 500), 25000),
@@ -636,7 +640,7 @@ void main() {
         // signal and endSampleIndex range as the all-'wlk' case above, so the
         // same result.
         expect(summary.gaitCadence.hasComputedCadence, isTrue);
-        expect(summary.gaitCadence.totalStepCount, 15);
+        expect(summary.gaitCadence.totalStepCount, 16);
       },
     );
 
@@ -668,7 +672,7 @@ void main() {
         expect(summary.gaitWalkingSpeed.hasComputedSpeed, isFalse);
 
         expect(summary.gaitCadence.hasComputedCadence, isTrue);
-        expect(summary.gaitCadence.totalStepCount, 15);
+        expect(summary.gaitCadence.totalStepCount, 16);
       },
     );
 
@@ -708,7 +712,7 @@ void main() {
         // steps around it.
         expect(summary.gaitCadence.signalSegmentCount, 1);
         expect(summary.gaitCadence.hasComputedCadence, isTrue);
-        expect(summary.gaitCadence.totalStepCount, 15);
+        expect(summary.gaitCadence.totalStepCount, 16);
       },
     );
 

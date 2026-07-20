@@ -75,16 +75,6 @@ String formatGaitRegularityHr(double? regularity) {
   return formatPercentHr(regularity);
 }
 
-/// Shown in place of step-time/stride-time/instant-cadence variability
-/// figures when a recording has too few full gait cycles for those
-/// coefficient-of-variation estimates to be meaningful (see
-/// `defaultTemporalVariabilityMinimumStrideIntervals` in
-/// `gait_temporal_parameters.dart`) -- below that count the figure reflects
-/// detector noise rather than gait physiology, so it is withheld instead of
-/// shown at face value.
-const String temporalVariabilityUnreliableMessageHr =
-    'Nepouzdano (premalo koraka u zapisu za stabilnu procjenu)';
-
 /// Standing disclosure shown once alongside computed gait metrics.
 ///
 /// A single pocket IMU has no mediolateral reference, so it cannot label

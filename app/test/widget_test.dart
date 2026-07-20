@@ -13,7 +13,6 @@ import 'package:gait_sense/repositories/user_profile_repository.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_error_view.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_screen.dart';
 import 'package:gait_sense/theme/gait_sense_theme.dart';
-import 'package:gait_sense/utils/gait_quality_format.dart';
 
 /// Wraps [child] in a [RepositoryProvider] that serves a real
 /// [UserProfileRepository]. Firebase is never initialized in this test file,
@@ -169,10 +168,9 @@ void main() {
       );
     }
 
-    // Long enough that the level-walking analysis window (~15 s at 2 Hz)
-    // clears defaultTemporalVariabilityMinimumStrideIntervals, so the
-    // variability rows below are expected to render rather than being
-    // withheld as unreliable (gait_temporal_parameters.dart).
+    // A long (~18 s) level-walking session so cadence and the mean
+    // step/stride-time rows render. Variability (CV) rows are no longer shown
+    // at all (see session_quality_section.dart), so they are not asserted.
     final session = SessionLog(
       startedAt: start,
       stoppedAt: start.add(const Duration(seconds: 18)),
@@ -211,18 +209,10 @@ void main() {
       find.text('Prosječno vrijeme koraka (eksperimentalno)'),
       findsOneWidget,
     );
-    expect(
-      find.text('Varijabilnost vremena koraka (eksperimentalno)'),
-      findsOneWidget,
-    );
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
     await tester.pumpAndSettle();
     expect(
       find.text('Prosječno vrijeme iskoraka (eksperimentalno)'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Varijabilnost vremena iskoraka (eksperimentalno)'),
       findsOneWidget,
     );
     expect(
@@ -233,8 +223,8 @@ void main() {
   });
 
   testWidgets(
-    'session summary withholds variability as unreliable for a short '
-    'recording',
+    'session summary renders cadence and mean step time for a short '
+    '(5-window) recording, with no CV rows',
     (tester) async {
       final start = DateTime.utc(2026, 1, 1, 12);
 
@@ -265,9 +255,11 @@ void main() {
       }
 
       // Only the app-level minimum of 5 "wlk" windows -- an analysis window
-      // of ~7.7 s, well under defaultTemporalVariabilityMinimumStrideIntervals
-      // worth of strides at 2 Hz. This is the exact short-recording case W5
-      // targets: cadence is still reported, but CV must be withheld.
+      // of ~7.7 s. Cadence and mean step time still render at this floor; CV
+      // rows are never shown regardless of recording length (see
+      // session_quality_section.dart), so this is not asserting a
+      // length-dependent gate -- only that the non-CV rows survive at the
+      // shortest recording the app will analyze.
       final session = SessionLog(
         startedAt: start,
         stoppedAt: start.add(const Duration(seconds: 10)),
@@ -306,10 +298,6 @@ void main() {
       expect(
         find.text('Varijabilnost vremena iskoraka (eksperimentalno)'),
         findsNothing,
-      );
-      expect(
-        find.text(temporalVariabilityUnreliableMessageHr),
-        findsOneWidget,
       );
     },
   );

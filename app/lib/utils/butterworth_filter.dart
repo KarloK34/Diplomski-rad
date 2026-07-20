@@ -59,11 +59,12 @@ List<double> filterCadenceLowPassButterworth(
     cutoffHz: boundedCutoffHz,
     sampleRateHz: sampleRateHz,
   );
-  final forward = _applyBiquadCascade(values, sections);
-  final backwardInput = forward.reversed.toList(growable: false);
-  final backward = _applyBiquadCascade(backwardInput, sections);
-
-  return backward.reversed.toList(growable: false);
+  return _zeroPhaseFilter(
+    values,
+    sections,
+    cutoffHz: boundedCutoffHz,
+    sampleRateHz: sampleRateHz,
+  );
 }
 
 /// Applies a fourth-order zero-lag Butterworth high-pass filter.
@@ -107,11 +108,101 @@ List<double> filterZeroPhaseHighPassButterworth(
     cutoffHz: boundedCutoffHz,
     sampleRateHz: sampleRateHz,
   );
-  final forward = _applyBiquadCascade(values, sections);
+  return _zeroPhaseFilter(
+    values,
+    sections,
+    cutoffHz: boundedCutoffHz,
+    sampleRateHz: sampleRateHz,
+  );
+}
+
+/// Runs [sections] forward then backward over [values] to cancel filter
+/// phase, after padding both ends to suppress the startup transient a
+/// forward pass produces from zero initial conditions.
+///
+/// A forward-then-backward IIR pass run directly on the raw samples (no
+/// padding) is not actually zero-transient at the edges: each pass starts
+/// from zero state, so any DC component or slope in the first/last samples
+/// produces an exponential-decay artifact that the following pipeline stage
+/// cannot distinguish from real signal. This is the standard problem
+/// zero-phase filtering implementations guard against -- see Gustafsson,
+/// "Determining the initial states in forward-backward filtering", IEEE
+/// Trans. Signal Process. 44(4), 1996, https://doi.org/10.1109/78.492552,
+/// for why edge conditions matter here. This project uses the simpler,
+/// far more common mitigation -- odd-symmetric reflection padding before the
+/// forward/backward pass, then discarding the padded region -- rather than
+/// Gustafsson's steady-state initial-condition solve. This is the default
+/// `padtype='odd'` behaviour of `scipy.signal.filtfilt`, the reference
+/// zero-phase-filtering implementation most reproductions of the cited
+/// papers' methods would rely on; see Virtanen et al., "SciPy 1.0:
+/// fundamental algorithms for scientific computing in Python", Nature
+/// Methods 17, 2020, https://doi.org/10.1038/s41592-019-0686-2.
+List<double> _zeroPhaseFilter(
+  List<double> values,
+  List<_BiquadCoefficients> sections, {
+  required double cutoffHz,
+  required double sampleRateHz,
+}) {
+  final padLength = _oddExtensionPadLength(
+    valueCount: values.length,
+    cutoffHz: cutoffHz,
+    sampleRateHz: sampleRateHz,
+  );
+  final padded = padLength == 0 ? values : _oddExtend(values, padLength);
+
+  final forward = _applyBiquadCascade(padded, sections);
   final backwardInput = forward.reversed.toList(growable: false);
   final backward = _applyBiquadCascade(backwardInput, sections);
+  final result = backward.reversed.toList(growable: false);
 
-  return backward.reversed.toList(growable: false);
+  return padLength == 0
+      ? result
+      : result.sublist(padLength, padLength + values.length);
+}
+
+/// Reflection padding length for [_zeroPhaseFilter].
+///
+/// Padding must scale with the filter's own settling time, not just its
+/// order: a fixed order-based padding length (e.g. `scipy.signal.filtfilt`'s
+/// order-only default) is tuned for filters whose cutoff is a sizeable
+/// fraction of the sample rate. This project's high-pass stage runs at 0.1 Hz
+/// against a 50 Hz signal -- three orders of magnitude below Nyquist -- where
+/// that default underestimates the settling length outright, while for the
+/// low-pass stage (3 Hz, close to the ~2 Hz gait cadence it filters) an
+/// order-only length large enough for the high-pass case would instead pad
+/// with more than half a stride's worth of reflected data, distorting the
+/// oscillation it is meant to preserve. Scaling padding to
+/// `3 / (2*pi*cutoffHz)` -- three time constants of the pole nearest cutoff,
+/// in samples -- keeps both filters' padding proportional to what each one
+/// actually needs to settle. Bounded so at least one real sample remains
+/// unreflected on each side.
+int _oddExtensionPadLength({
+  required int valueCount,
+  required double cutoffHz,
+  required double sampleRateHz,
+}) {
+  final samplesPerTimeConstant = sampleRateHz / (2 * math.pi * cutoffHz);
+  final nominalPadLength = (3 * samplesPerTimeConstant).ceil();
+  return math.min(nominalPadLength, valueCount - 1);
+}
+
+/// Extends [values] by [padLength] samples on each side via odd-symmetric
+/// reflection about the first and last sample, e.g. `scipy.signal.odd_ext`.
+/// Unlike zero-padding or plain mirroring, this keeps the extension
+/// continuous with the signal's edge value *and* slope, so a filter's
+/// forward pass over the padded signal settles before it reaches the real
+/// data instead of starting a transient there.
+List<double> _oddExtend(List<double> values, int padLength) {
+  final lastIndex = values.length - 1;
+  final first = values[0];
+  final last = values[lastIndex];
+  final leftExtension = [
+    for (var i = 0; i < padLength; i++) 2 * first - values[padLength - i],
+  ];
+  final rightExtension = [
+    for (var i = 0; i < padLength; i++) 2 * last - values[lastIndex - 1 - i],
+  ];
+  return [...leftExtension, ...values, ...rightExtension];
 }
 
 List<_BiquadCoefficients> _butterworthFourthOrderLowPassSections({

@@ -91,29 +91,16 @@ class SessionQualitySection extends StatelessWidget {
               label: 'Prosječno vrijeme iskoraka (eksperimentalno)',
               value: formatDurationSecondsHr(strideTime),
             ),
-          if (temporal.hasReliableStepTimeVariability) ...[
-            LabeledValueRow(
-              label: 'Varijabilnost vremena koraka (eksperimentalno)',
-              value: formatPercentHr(temporal.stepTimeCoefficientOfVariation),
-            ),
-            LabeledValueRow(
-              label: 'Varijabilnost kadence (eksperimentalno)',
-              value: formatCadenceSpreadHr(
-                temporal.instantCadenceStandardDeviationStepsPerMinute,
-              ),
-            ),
-          ],
-          if (temporal.strideTimeCoefficientOfVariation case final strideCv?
-              when temporal.hasReliableStrideTimeVariability)
-            LabeledValueRow(
-              label: 'Varijabilnost vremena iskoraka (eksperimentalno)',
-              value: formatPercentHr(strideCv),
-            ),
-          if (!temporal.hasReliableStepTimeVariability)
-            const LabeledValueRow(
-              label: 'Varijabilnost hoda',
-              value: temporalVariabilityUnreliableMessageHr,
-            ),
+          // Step-time / stride-time / cadence variability (CV) is intentionally
+          // not displayed: a single pocket IMU cannot time individual gait
+          // events accurately enough for a defensible gait-variability figure
+          // (Mobbs et al., 2022, https://doi.org/10.21037/mhealth-21-17), so a
+          // CV here would reflect detector jitter and sample-rate quantization
+          // rather than gait physiology. The values are still computed on
+          // GaitTemporalParameters (and exported) for offline validation. The
+          // autocorrelation-based regularity below is kept instead, as a
+          // signal-quality descriptor (Moe-Nilssen & Helbostad, 2004,
+          // https://doi.org/10.1016/S0021-9290(03)00233-1).
           LabeledValueRow(
             label: 'Regularnost signala (indikator kvalitete)',
             value: formatGaitRegularityHr(temporal.gaitRegularity),

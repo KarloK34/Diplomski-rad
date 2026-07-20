@@ -253,8 +253,8 @@ void main() {
   });
 
   test(
-    'marks step/stride variability unreliable below the minimum stride '
-    'count, reliable at or above it',
+    'strideIntervalCount stays below the minimum stride-interval threshold '
+    'for a short recording and reaches it for a long one',
     () {
       final shortResult = computedResultFromOffsets([
         Duration.zero,
@@ -270,8 +270,6 @@ void main() {
         shortTemporal!.strideIntervalCount,
         lessThan(defaultTemporalVariabilityMinimumStrideIntervals),
       );
-      expect(shortTemporal.hasReliableStepTimeVariability, isFalse);
-      expect(shortTemporal.hasReliableStrideTimeVariability, isFalse);
 
       final longOffsets = [
         for (
@@ -289,8 +287,6 @@ void main() {
         longTemporal!.strideIntervalCount,
         greaterThanOrEqualTo(defaultTemporalVariabilityMinimumStrideIntervals),
       );
-      expect(longTemporal.hasReliableStepTimeVariability, isTrue);
-      expect(longTemporal.hasReliableStrideTimeVariability, isTrue);
     },
   );
 
@@ -798,9 +794,12 @@ void main() {
     expect(signal.endSampleIndexExclusive, 434);
     expect(signal.samples, rawSamples.sublist(50, 434));
     expect(result.status, GaitCadenceStatus.computed);
+    // periodicSamples' bump peaks fall at sample index 6.25 + 25k (from its
+    // 2 Hz sin argument and 20 ms sample spacing); within this segment's
+    // [50, 434) range that is k = 2..17 -- 16 peaks, not 15.
     expect(
       result.stepCount,
-      15,
+      16,
       reason:
           'period=${result.dominantPeriod}, '
           'periodicity=${result.periodicity}, '
