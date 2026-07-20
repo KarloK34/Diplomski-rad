@@ -24,6 +24,7 @@ class ActivityTimelineChart extends StatelessWidget {
       child: SizedBox(
         height: 18,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (final segment in timeline)
               Expanded(
