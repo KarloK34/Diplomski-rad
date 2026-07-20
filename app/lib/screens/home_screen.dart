@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gait_sense/blocs/pending_sessions/pending_sessions_cubit.dart';
-import 'package:gait_sense/blocs/pending_sessions/pending_sessions_state.dart';
 import 'package:gait_sense/blocs/sessions/sessions_cubit.dart';
 import 'package:gait_sense/blocs/sessions/sessions_state.dart';
 import 'package:gait_sense/navigation/app_routes.dart';
@@ -36,37 +34,7 @@ class HomeScreen extends StatelessWidget {
               subtitle: 'Pregled stanja i zadnjih mjerenja',
             ),
             SizedBox(height: spacing.lg),
-            BlocBuilder<PendingSessionsCubit, PendingSessionsState>(
-              builder: (context, pendingState) {
-                final pending = pendingState.sessions;
-                if (pending.isEmpty) return const SizedBox.shrink();
-
-                // Only the most recent is offered at a time; resolving it
-                // refreshes the cubit, which surfaces the next one if more
-                // than one session was recovered.
-                final latest = pending.reduce(
-                  (a, b) => a.startedAt.isAfter(b.startedAt) ? a : b,
-                );
-                return Padding(
-                  padding: EdgeInsets.only(bottom: spacing.md),
-                  child: ActionCard(
-                    icon: Icons.history_toggle_off,
-                    iconColor: context.colors.error,
-                    title: 'Nespremljena sesija',
-                    subtitle: pending.length > 1
-                        ? '${pending.length} sesije nisu spremljene prije '
-                              'zatvaranja aplikacije.'
-                        : 'Sesija od ${formatStartTimestamp(latest.startedAt)} '
-                              'nije spremljena prije zatvaranja aplikacije.',
-                    actionLabel: 'Pregledaj',
-                    onPressed: () => context.push(
-                      AppRoutes.recordRecoveredSummary,
-                      extra: latest,
-                    ),
-                  ),
-                );
-              },
-            ),
+            const PendingSessionCard(),
             ActionCard(
               icon: Icons.directions_walk,
               title: 'Nova sesija',
@@ -122,23 +90,7 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
               SizedBox(height: spacing.md),
-              InfoCard(
-                title: 'Zadnja sesija',
-                rows: [
-                  LabeledRow(
-                    label: 'Datum',
-                    value: formatStartTimestamp(sessions.first.startedAt),
-                  ),
-                  LabeledRow(
-                    label: 'Trajanje',
-                    value: formatElapsedClock(sessions.first.duration),
-                  ),
-                  LabeledRow(
-                    label: 'Predikcije',
-                    value: '${sessions.first.predictionCount}',
-                  ),
-                ],
-              ),
+              LastSessionCard(session: sessions.first),
             ],
           ],
         );
