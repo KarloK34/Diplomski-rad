@@ -19,11 +19,18 @@ const double kStandardGravity = 9.80665;
 /// linear part, so their difference is the sensor-fused gravity. This is more
 /// faithful than an exponential-moving-average low-pass and needs no warm-up.
 ///
-/// Sign and unit rules follow cnn_final.preproc.json:
-///  - Android: negate each acceleration axis and divide by g; rotation rate is
-///    left untouched (gyroscope convention matches iOS).
-///  - iOS: sensors_plus already reports in the iOS sign convention, so only the
-///    unit rescale (÷ g) is applied.
+/// Sign and unit rules follow cnn_final.preproc.json, but the sign flip is
+/// needed on **both** platforms: `sensors_plus` (v7.0.0) negates its raw iOS
+/// accelerometer/userAcceleration readings in native code specifically "to
+/// align with Android" (`FPPStreamHandlerPlus.swift`,
+/// `FPPAccelerometerStreamHandlerPlus` and `FPPUserAccelStreamHandlerPlus`),
+/// while its Android readings pass through unmodified
+/// (`StreamHandlerImpl.kt`). So by the time either platform's stream reaches
+/// Dart, both are already in the same (Android hardware) sign convention —
+/// negating once more here is what recovers the iOS CoreMotion / MotionSense
+/// convention on both, not just on Android. Rotation rate needs no
+/// adjustment on either platform: sensors_plus leaves it untouched on both,
+/// and it already matches the iOS convention.
 ///
 /// References:
 ///  - Sensor Logger CROSSPLATFORM.md / COORDINATES.md (sign conventions)
@@ -35,25 +42,23 @@ class SensorConversion {
   ///
   /// [acceleration] is the total accelerometer reading (gravity + linear) in
   /// m/s², [userAcceleration] the linear acceleration (gravity removed) in
-  /// m/s², and [rotationRate] the angular velocity in rad/s — all in the host
-  /// platform's native frame. [isAndroid] selects the platform-specific sign
-  /// handling.
+  /// m/s², and [rotationRate] the angular velocity in rad/s — all as reported
+  /// by `sensors_plus`, which presents both platforms in the same convention.
   static SensorSample toIosConvention({
     required DateTime timestamp,
     required ({double x, double y, double z}) acceleration,
     required ({double x, double y, double z}) userAcceleration,
     required ({double x, double y, double z}) rotationRate,
-    required bool isAndroid,
   }) {
-    // Derived gravity in the native frame (m/s²).
+    // Derived gravity in the sensors_plus frame (m/s²).
     final gravityNativeX = acceleration.x - userAcceleration.x;
     final gravityNativeY = acceleration.y - userAcceleration.y;
     final gravityNativeZ = acceleration.z - userAcceleration.z;
 
-    // Single factor combining the sign flip (Android only) and the m/s² → g
-    // rescale. Gravity and user acceleration share the accelerometer frame so
-    // they use the same factor.
-    final accelerationScale = (isAndroid ? -1.0 : 1.0) / kStandardGravity;
+    // Single factor combining the sign flip (needed on both platforms — see
+    // class doc comment) and the m/s² → g rescale. Gravity and user
+    // acceleration share the accelerometer frame so they use the same factor.
+    const accelerationScale = -1.0 / kStandardGravity;
 
     return SensorSample(
       timestamp: timestamp,

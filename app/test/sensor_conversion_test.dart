@@ -13,7 +13,15 @@ void main() {
     double z,
   ) => sqrt(x * x + y * y + z * z);
 
-  group('SensorConversion.toIosConvention (Android)', () {
+  group('SensorConversion.toIosConvention', () {
+    // sensors_plus (v7.0.0) already negates its raw iOS accelerometer/
+    // userAcceleration readings in native code to align with Android
+    // (FPPStreamHandlerPlus.swift), while Android readings pass through
+    // unmodified (StreamHandlerImpl.kt). So both platforms reach Dart in the
+    // same sign convention, and the same negation below is what's needed to
+    // recover the iOS CoreMotion / MotionSense convention on both — there is
+    // no separate per-platform behaviour left to test.
+
     test('static phone yields gravity magnitude ~ 1 g', () {
       // Accelerometer reads pure gravity, linear acceleration ~ 0.
       final sample = SensorConversion.toIosConvention(
@@ -21,7 +29,6 @@ void main() {
         acceleration: (x: 0, y: 0, z: kStandardGravity),
         userAcceleration: (x: 0, y: 0, z: 0),
         rotationRate: (x: 0, y: 0, z: 0),
-        isAndroid: true,
       );
       expect(
         gravityMagnitude(
@@ -39,7 +46,6 @@ void main() {
         acceleration: (x: kStandardGravity, y: 0, z: 0),
         userAcceleration: (x: 0, y: 0, z: 0),
         rotationRate: (x: 0, y: 0, z: 0),
-        isAndroid: true,
       );
       expect(sample.gravityX, closeTo(-1, 1e-9));
     });
@@ -50,23 +56,9 @@ void main() {
         acceleration: (x: 0, y: 0, z: 2 * kStandardGravity),
         userAcceleration: (x: 0, y: 0, z: kStandardGravity),
         rotationRate: (x: 0, y: 0, z: 0),
-        isAndroid: true,
       );
       expect(sample.gravityZ, closeTo(-1, 1e-9));
       expect(sample.userAccelerationZ, closeTo(-1, 1e-9));
-    });
-  });
-
-  group('SensorConversion.toIosConvention (iOS)', () {
-    test('acceleration rescaled to g without sign flip', () {
-      final sample = SensorConversion.toIosConvention(
-        timestamp: timestamp,
-        acceleration: (x: kStandardGravity, y: 0, z: 0),
-        userAcceleration: (x: 0, y: 0, z: 0),
-        rotationRate: (x: 0, y: 0, z: 0),
-        isAndroid: false,
-      );
-      expect(sample.gravityX, closeTo(1, 1e-9));
     });
   });
 
@@ -76,7 +68,6 @@ void main() {
       acceleration: (x: 0, y: 0, z: 0),
       userAcceleration: (x: 0, y: 0, z: 0),
       rotationRate: (x: 0.1, y: -0.2, z: 0.3),
-      isAndroid: true,
     );
     expect(sample.rotationRateX, 0.1);
     expect(sample.rotationRateY, -0.2);

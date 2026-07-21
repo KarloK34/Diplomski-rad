@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/utils/sensor_conversion.dart';
@@ -16,16 +15,11 @@ import 'package:sensors_plus/sensors_plus.dart';
 /// which is below the model's sensitivity.
 class SensorService {
   /// Creates a service. [samplePeriod] is the resampler tick (default 50 Hz).
-  SensorService({
-    this.samplePeriod = const Duration(milliseconds: 20),
-    bool? isAndroidOverride,
-  }) : _isAndroid = isAndroidOverride ?? Platform.isAndroid;
+  SensorService({this.samplePeriod = const Duration(milliseconds: 20)});
 
   /// The fixed period between emitted samples. 20 ms ⇒ 50 Hz, matching the
   /// MotionSense recording rate the model was trained on.
   final Duration samplePeriod;
-
-  final bool _isAndroid;
 
   final StreamController<SensorSample> _sampleController =
       StreamController<SensorSample>.broadcast();
@@ -94,7 +88,6 @@ class SensorService {
           y: gyroscope.y,
           z: gyroscope.z,
         ),
-        isAndroid: _isAndroid,
       ),
     );
   }
