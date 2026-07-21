@@ -5,6 +5,7 @@
 library;
 
 export 'avatars/user_avatar.dart';
+export 'buttons/forgot_password_button.dart';
 export 'buttons/google_sign_in_button.dart';
 export 'buttons/hold_to_confirm_fab.dart';
 export 'buttons/metric_info_button.dart';
@@ -32,6 +33,7 @@ export 'charts/chart_legend.dart';
 export 'charts/metric_trend_chart.dart';
 export 'dialogs/confirmation_dialog.dart';
 export 'dialogs/edit_name_dialog.dart';
+export 'dialogs/forgot_password_dialog.dart';
 export 'dialogs/metric_info_sheet.dart';
 export 'forms/email_field.dart';
 export 'forms/height_field.dart';

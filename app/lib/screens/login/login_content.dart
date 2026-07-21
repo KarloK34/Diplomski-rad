@@ -51,7 +51,8 @@ class LoginContent extends StatelessWidget {
                       value: state.password,
                       onChanged: cubit.passwordChanged,
                     ),
-                    SizedBox(height: spacing.lg),
+                    const ForgotPasswordButton(),
+                    SizedBox(height: spacing.sm),
                     PrimaryButton(
                       label: 'Prijavi se',
                       onPressed: submitting ? null : cubit.submitted,

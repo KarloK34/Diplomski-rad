@@ -27,3 +27,12 @@ String signupErrorMessage(FirebaseAuthException error) {
     _ => 'Registracija nije uspjela. Pokušajte ponovno.',
   };
 }
+
+/// Maps a password-reset [error] to a Croatian message.
+String passwordResetErrorMessage(FirebaseAuthException error) {
+  return switch (error.code) {
+    'invalid-email' => 'Unesena e-mail adresa nije valjana.',
+    'too-many-requests' => 'Previše pokušaja. Pokušajte ponovno kasnije.',
+    _ => 'Slanje e-maila nije uspjelo. Pokušajte ponovno.',
+  };
+}

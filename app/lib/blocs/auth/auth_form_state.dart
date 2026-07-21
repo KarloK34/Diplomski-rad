@@ -23,6 +23,9 @@ enum AuthSubmitMethod {
 
   /// The Google sign-in flow was started.
   google,
+
+  /// A password-reset email was requested.
+  passwordReset,
 }
 
 /// Form state shared by `LoginCubit` and `SignupCubit` — both are a plain

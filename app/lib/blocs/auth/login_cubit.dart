@@ -84,6 +84,27 @@ class LoginCubit extends Cubit<AuthFormState> {
     }
   }
 
+  /// Sends a password-reset email to [email].
+  Future<void> sendPasswordResetEmail(String email) async {
+    if (state.status == AuthFormStatus.submitting) return;
+    emit(
+      AuthFormState(
+        email: state.email,
+        password: state.password,
+        status: AuthFormStatus.submitting,
+        submitMethod: AuthSubmitMethod.passwordReset,
+      ),
+    );
+    try {
+      await _authRepository.sendPasswordResetEmail(email);
+      if (isClosed) return;
+      emit(state.copyWith(status: AuthFormStatus.success));
+    } on FirebaseAuthException catch (error) {
+      if (isClosed) return;
+      emit(_failure(passwordResetErrorMessage(error)));
+    }
+  }
+
   AuthFormState _failure(String message) {
     return AuthFormState(
       email: state.email,
