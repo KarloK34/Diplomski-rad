@@ -1,29 +1,38 @@
 """Custom Keras pooling layers for HAR-specific signal processing.
 
-Two pooling operators are provided, both motivated by the
-*Redundancy-Aware CNN* analysis of Liu et al. (2024, PMC12845535) and
-adapted to 1-D IMU windows.
+Two pooling operators are provided, loosely inspired by the extrema-based
+pooling idea in Ameen, B. A. H., & Aminifar, S. A. (2026). *Robust
+Activity Recognition via Redundancy-Aware CNNs and Novel Pooling for
+Noisy Mobile Sensor Data.* Sensors, 26(2), 710. DOI 10.3390/s26020710
+(evaluated on the WISDM dataset, general HAR — not gait/pocket-specific).
+
+The formulas below are project variants inspired by that paper's
+pooling operators, not a literal reproduction. The paper's own ECP/CMV
+both start from the midrange ``(max+min)/2`` and subtract a spread term;
+this module drops the midrange term entirely (`ECPPooling`) or replaces
+it with the arithmetic mean (`CMVPooling`):
+
+* Paper's ECP: ``(max+min)/2 - (max-min)^2/2``. This module's
+  :class:`ECPPooling`: ``(max-min)^2`` (squared range only).
+* Paper's CMV: ``(max+min)/2 - std``. This module's :class:`CMVPooling`:
+  ``mean - std`` (arithmetic mean, not midrange).
 
 * :class:`ECPPooling` — Extrema Contrast Pooling. Computes the squared
-  range :math:`(\\max - \\min)^2` over each window. Emphasises sharp
-  transients (heel strike at the start of a downstairs step, foot
-  push-off in jogging) and is approximately invariant to slowly varying
-  hardware-specific bias.
+  range :math:`(\\max - \\min)^2` over each window.
 * :class:`CMVPooling` — Center Minus Variation. Returns the per-window
-  mean minus the per-window standard deviation. Penalises high-frequency
-  hardware noise that Android phones tend to produce under load.
+  mean minus the per-window standard deviation.
+
+Neither layer is part of the shipped model (`models/cnn_final.tflite`):
+they were tried in the architecture-comparison sweep
+(`12-arch-comparison.ipynb`, variants C/E/F) and all underperformed the
+winning `A_baseline`/`D_dilated_reg` variants — dead experimental code
+kept in the repository, not on the deployment path.
 
 Both layers operate channel-wise (no cross-channel mixing) and accept
 either ``valid`` or ``same`` padding. They are JSON-serialisable via the
 standard Keras ``get_config`` / ``from_config`` mechanism so trained
 models containing them can be loaded back without registering them
 manually.
-
-References
-----------
-Liu, X., Wang, P., Zhang, R., et al. (2024). Robust Activity
-Recognition via Redundancy-Aware Convolutional Neural Networks.
-PMC12845535. https://pmc.ncbi.nlm.nih.gov/articles/PMC12845535/
 """
 
 from __future__ import annotations
@@ -39,7 +48,12 @@ class ECPPooling(layers.Layer):
     For each pooling window of length ``pool_size`` along the time axis,
     returns :math:`(\\max - \\min)^2`. Computed as a difference of two
     max-pools (a min-pool over ``x`` equals the negative of a max-pool
-    over ``-x``).
+    over ``-x``). Squared range as a transient-emphasising pooling
+    statistic is a project variant inspired by, but not a literal
+    reproduction of, the ECP operator in Ameen & Aminifar (2026, module
+    docstring) — no source supports specific claims about heel-strike
+    detection or hardware-noise invariance for this formula; none are
+    made here.
     """
 
     def __init__(
@@ -101,7 +115,12 @@ class CMVPooling(layers.Layer):
     Per pooling window of length ``pool_size`` returns
     :math:`\\mathrm{mean}(w) - \\mathrm{std}(w)`. Implemented via two
     average-pools (one on ``x`` and one on ``x**2``) so it is fully
-    differentiable on TF graph.
+    differentiable on TF graph. Mean-minus-std as a pooling statistic is
+    a project variant inspired by, but not a literal reproduction of,
+    the CMV operator in Ameen & Aminifar (2026, module docstring), which
+    uses the midrange ``(max+min)/2`` in place of the mean — no source
+    supports the claim that this penalises Android-specific hardware
+    noise; none is made here.
     """
 
     def __init__(
