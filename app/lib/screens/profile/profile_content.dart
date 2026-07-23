@@ -74,7 +74,7 @@ class ProfileContent extends StatelessWidget {
               NavigationListTile(
                 icon: Icons.lock_reset,
                 title: 'Promjena lozinke',
-                subtitle: 'Poslat ćemo vezu na e-poštu',
+                subtitle: 'Primit ćete vezu na e-poštu',
                 showChevron: false,
                 loading: sendingReset,
                 onTap: () => _sendPasswordReset(context, user?.email),
@@ -130,7 +130,7 @@ Future<void> _sendPasswordReset(BuildContext context, String? email) async {
   final confirmed = await showConfirmationDialog(
     context,
     title: 'Promjena lozinke?',
-    message: 'Poslat ćemo vezu za promjenu lozinke na $email.',
+    message: 'Primit ćete vezu za promjenu lozinke na $email.',
     confirmLabel: 'Pošalji',
   );
   if (!confirmed || !context.mounted) return;
