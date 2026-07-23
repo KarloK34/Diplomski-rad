@@ -530,7 +530,14 @@ void main() {
         predictionAt('wlk', 5, endSampleIndex: 305),
         predictionAt('wlk', 6, endSampleIndex: 369),
         predictionAt('wlk', 8, endSampleIndex: 433),
+        // Three consecutive 'sit' windows: deliberately wider than
+        // defaultGaitSegmentGapToleranceWindows (2), so the two 'wlk' runs
+        // stay separate segments (a genuine pause, not a brief
+        // misclassification blip) and this test keeps exercising
+        // duration-weighted aggregation across two distinct segments.
         predictionAt('sit', 9, endSampleIndex: 497),
+        predictionAt('sit', 10, endSampleIndex: 561),
+        predictionAt('sit', 11, endSampleIndex: 595),
         predictionAt('wlk', 12, endSampleIndex: 627),
         predictionAt('wlk', 13, endSampleIndex: 691),
         predictionAt('wlk', 14, endSampleIndex: 755),
@@ -690,10 +697,15 @@ void main() {
           session(
             rawSamples: rawSamples,
             predictions: [
+              // Three consecutive 'ups' windows: deliberately wider than
+              // defaultGaitSegmentGapToleranceWindows (2), so this isolates
+              // the label-set-breadth distinction below from gap-tolerant
+              // merging (a <=2-window gap would now bridge for both label
+              // sets — see the gap-tolerance test group instead).
               predictionAt('wlk', 3, endSampleIndex: 177),
               predictionAt('ups', 4, endSampleIndex: 241),
               predictionAt('ups', 5, endSampleIndex: 305),
-              predictionAt('wlk', 6, endSampleIndex: 369),
+              predictionAt('ups', 6, endSampleIndex: 369),
               predictionAt('wlk', 8, endSampleIndex: 433),
             ],
             stoppedAt: start.add(const Duration(seconds: 10)),
@@ -718,6 +730,73 @@ void main() {
         expect(summary.gaitCadence.signalSegmentCount, 1);
         expect(summary.gaitCadence.hasComputedCadence, isTrue);
         expect(summary.gaitCadence.totalStepCount, 16);
+      },
+    );
+
+    test(
+      'gap-tolerant merge treats a brief non-locomotion blip as one '
+      'suitable level-walking segment',
+      () {
+        final rawSamples = periodicSamples(500);
+        final summary = computeSessionQualitySummary(
+          session(
+            rawSamples: rawSamples,
+            predictions: [
+              predictionAt('wlk', 1, endSampleIndex: 127),
+              predictionAt('wlk', 2, endSampleIndex: 175),
+              predictionAt('wlk', 3, endSampleIndex: 223),
+              // Two consecutive 'std' windows: within
+              // defaultGaitSegmentGapToleranceWindows (2), so this brief
+              // mid-walk blip is bridged rather than splitting the run.
+              predictionAt('std', 4),
+              predictionAt('std', 5),
+              predictionAt('wlk', 6, endSampleIndex: 367),
+              predictionAt('wlk', 7, endSampleIndex: 415),
+              predictionAt('wlk', 8, endSampleIndex: 463),
+            ],
+            stoppedAt: start.add(const Duration(seconds: 9)),
+          ),
+          userHeightCm: 175,
+        );
+
+        expect(summary.gaitSegments, hasLength(1));
+        final segment = summary.gaitSegments.single;
+        expect(segment.quality, GaitSegmentQuality.suitable);
+        expect(segment.windows, 8);
+        expect(segment.labelCounts, {'wlk': 6, 'std': 2});
+        expect(summary.suitableGaitSegments, hasLength(1));
+        expect(summary.hasEnoughLevelWalkingGaitSegments, isTrue);
+        expect(summary.gaitCadence.signalSegmentCount, 1);
+        expect(summary.gaitCadence.hasComputedCadence, isTrue);
+      },
+    );
+
+    test(
+      'a gap wider than the tolerance still splits the segment',
+      () {
+        final summary = computeSessionQualitySummary(
+          session(
+            predictions: [
+              predictionAt('wlk', 1),
+              predictionAt('wlk', 2),
+              predictionAt('wlk', 3),
+              predictionAt('std', 4),
+              predictionAt('std', 5),
+              predictionAt('std', 6),
+              predictionAt('wlk', 7),
+              predictionAt('wlk', 8),
+              predictionAt('wlk', 9),
+            ],
+            stoppedAt: start.add(const Duration(seconds: 9)),
+          ),
+        );
+
+        expect(summary.gaitSegments, hasLength(2));
+        expect(
+          summary.gaitSegments.every((s) => s.windows == 3),
+          isTrue,
+        );
+        expect(summary.suitableGaitSegments, isEmpty);
       },
     );
 

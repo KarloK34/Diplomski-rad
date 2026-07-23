@@ -34,6 +34,18 @@ const Set<String> defaultLocomotionLabels = {'wlk', 'ups', 'dws', 'jog'};
 /// and is not clinically validated.
 const int defaultGaitCandidateMinWindows = 5;
 
+/// Maximum number of consecutive non-matching prediction windows bridged
+/// between two runs of the requested labels, so a brief misclassification
+/// (e.g. around a turn) doesn't fragment one continuous locomotion run into
+/// segments too short to analyze.
+///
+/// 2 windows (2.56 s) stays below the ≤3 s gap that still counts as one
+/// "walking bout" in real-world IMU gait research (Micó-Amigo et al. 2023,
+/// Romijnders et al. 2023, Mobilise-D). Applying it to
+/// [defaultLevelWalkingLabel] segmentation risks bridging a real turn rather
+/// than noise, which the inverted-pendulum walking-speed model can't handle.
+const int defaultGaitSegmentGapToleranceWindows = 2;
+
 /// Reason code for a locomotion run that is shorter than the app-level gate.
 const String tooFewLevelWalkingWindowsReason = 'too_few_level_walking_windows';
 
@@ -52,79 +64,143 @@ const String tooFewLevelWalkingWindowsReason = 'too_few_level_walking_windows';
 /// model's level-gait assumption; pass [defaultLocomotionLabels] instead to
 /// also include stair runs, appropriate for step *counting* — see that
 /// constant's doc comment for why the two use different label sets.
+///
+/// [gapToleranceWindows] bridges up to that many consecutive non-matching
+/// windows between two runs of [labels] into a single segment before
+/// [minWindows]/quality are evaluated — see
+/// [defaultGaitSegmentGapToleranceWindows] for why this exists and its
+/// literature grounding. Pass `0` to restore strict, gap-free consecutive-run
+/// segmentation.
 List<GaitSegment> extractGaitSegments(
   SessionLog session, {
   Set<String> labels = const {defaultLevelWalkingLabel},
   int minWindows = defaultGaitCandidateMinWindows,
+  int gapToleranceWindows = defaultGaitSegmentGapToleranceWindows,
   Duration fallbackStepDuration = defaultPredictionStepDuration,
 }) {
   assert(labels.isNotEmpty, 'labels must not be empty');
   assert(minWindows > 0, 'minWindows must be positive');
+  assert(
+    gapToleranceWindows >= 0,
+    'gapToleranceWindows must not be negative',
+  );
   assert(
     fallbackStepDuration > Duration.zero,
     'fallbackStepDuration must be positive',
   );
 
   final predictions = session.predictions;
-  final segments = <GaitSegment>[];
+  final rawRuns = <_IndexRange>[];
   var runStart = -1;
-
-  void finishRun(int endIndexExclusive) {
-    if (runStart < 0) return;
-
-    final windows = endIndexExclusive - runStart;
-    final displayTimeRange = predictionDisplayTimeRange(
-      session,
-      startIndex: runStart,
-      endIndexExclusive: endIndexExclusive,
-      fallbackStepDuration: fallbackStepDuration,
-    );
-    final analysisTimeRange = predictionAnalysisTimeRange(
-      session,
-      startIndex: runStart,
-      endIndexExclusive: endIndexExclusive,
-      fallbackStepDuration: fallbackStepDuration,
-    );
-    final analysisSampleRange = _predictionAnalysisSampleRange(
-      session,
-      startIndex: runStart,
-      endIndexExclusive: endIndexExclusive,
-    );
-    final isSuitable = windows >= minWindows;
-
-    segments.add(
-      GaitSegment(
-        startIndex: runStart,
-        endIndexExclusive: endIndexExclusive,
-        windows: windows,
-        displayStartOffset: displayTimeRange.startOffset,
-        displayEndOffset: displayTimeRange.endOffset,
-        analysisStartOffset: analysisTimeRange.startOffset,
-        analysisEndOffset: analysisTimeRange.endOffset,
-        analysisStartSampleIndex: analysisSampleRange?.startIndex,
-        analysisEndSampleIndexExclusive: analysisSampleRange?.endIndexExclusive,
-        labelCounts: Map.unmodifiable(
-          _labelCounts(session, runStart, endIndexExclusive),
-        ),
-        quality: isSuitable
-            ? GaitSegmentQuality.suitable
-            : GaitSegmentQuality.tooFewWindows,
-        qualityReason: isSuitable ? null : tooFewLevelWalkingWindowsReason,
-      ),
-    );
-    runStart = -1;
-  }
 
   for (var i = 0; i < predictions.length; i++) {
     if (labels.contains(predictions[i].label)) {
       if (runStart < 0) runStart = i;
-    } else {
-      finishRun(i);
+    } else if (runStart >= 0) {
+      rawRuns.add(_IndexRange(runStart, i));
+      runStart = -1;
     }
   }
-  finishRun(predictions.length);
+  if (runStart >= 0) rawRuns.add(_IndexRange(runStart, predictions.length));
+
+  final mergedRuns = _mergeGapTolerantRuns(rawRuns, gapToleranceWindows);
+
+  final segments = <GaitSegment>[
+    for (final run in mergedRuns)
+      _buildGaitSegment(
+        session,
+        startIndex: run.start,
+        endIndexExclusive: run.endExclusive,
+        minWindows: minWindows,
+        fallbackStepDuration: fallbackStepDuration,
+      ),
+  ];
 
   return List.unmodifiable(segments);
+}
+
+/// Half-open `[start, endExclusive)` prediction-index span, used internally
+/// to represent both raw same-label runs and gap-merged segments before a
+/// [GaitSegment] is built for the latter.
+class _IndexRange {
+  const _IndexRange(this.start, this.endExclusive);
+
+  final int start;
+  final int endExclusive;
+}
+
+/// Merges consecutive [rawRuns] separated by a gap of at most
+/// [gapToleranceWindows] prediction indices into one span, chaining merges
+/// (`A + short gap + B + short gap + C` all become one run) exactly as long
+/// as each individual gap qualifies — a gap longer than the tolerance starts
+/// a new span, and its own trailing gap is evaluated independently.
+List<_IndexRange> _mergeGapTolerantRuns(
+  List<_IndexRange> rawRuns,
+  int gapToleranceWindows,
+) {
+  if (rawRuns.isEmpty || gapToleranceWindows <= 0) return rawRuns;
+
+  final merged = <_IndexRange>[rawRuns.first];
+  for (final run in rawRuns.skip(1)) {
+    final previous = merged.last;
+    final gap = run.start - previous.endExclusive;
+    if (gap <= gapToleranceWindows) {
+      merged[merged.length - 1] = _IndexRange(
+        previous.start,
+        run.endExclusive,
+      );
+    } else {
+      merged.add(run);
+    }
+  }
+  return merged;
+}
+
+GaitSegment _buildGaitSegment(
+  SessionLog session, {
+  required int startIndex,
+  required int endIndexExclusive,
+  required int minWindows,
+  required Duration fallbackStepDuration,
+}) {
+  final windows = endIndexExclusive - startIndex;
+  final displayTimeRange = predictionDisplayTimeRange(
+    session,
+    startIndex: startIndex,
+    endIndexExclusive: endIndexExclusive,
+    fallbackStepDuration: fallbackStepDuration,
+  );
+  final analysisTimeRange = predictionAnalysisTimeRange(
+    session,
+    startIndex: startIndex,
+    endIndexExclusive: endIndexExclusive,
+    fallbackStepDuration: fallbackStepDuration,
+  );
+  final analysisSampleRange = _predictionAnalysisSampleRange(
+    session,
+    startIndex: startIndex,
+    endIndexExclusive: endIndexExclusive,
+  );
+  final isSuitable = windows >= minWindows;
+
+  return GaitSegment(
+    startIndex: startIndex,
+    endIndexExclusive: endIndexExclusive,
+    windows: windows,
+    displayStartOffset: displayTimeRange.startOffset,
+    displayEndOffset: displayTimeRange.endOffset,
+    analysisStartOffset: analysisTimeRange.startOffset,
+    analysisEndOffset: analysisTimeRange.endOffset,
+    analysisStartSampleIndex: analysisSampleRange?.startIndex,
+    analysisEndSampleIndexExclusive: analysisSampleRange?.endIndexExclusive,
+    labelCounts: Map.unmodifiable(
+      _labelCounts(session, startIndex, endIndexExclusive),
+    ),
+    quality: isSuitable
+        ? GaitSegmentQuality.suitable
+        : GaitSegmentQuality.tooFewWindows,
+    qualityReason: isSuitable ? null : tooFewLevelWalkingWindowsReason,
+  );
 }
 
 _SampleRange? _predictionAnalysisSampleRange(

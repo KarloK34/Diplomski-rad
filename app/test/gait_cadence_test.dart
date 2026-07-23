@@ -125,6 +125,49 @@ void main() {
     ];
   }
 
+  List<SensorSample> boundaryArtifactSamples({
+    required int sampleCount,
+    required double accelerationPeriodSeconds,
+    required int gyroStepCount,
+    required double gyroStepPeriodSeconds,
+  }) {
+    const samplePeriodSeconds = 0.02;
+    const gyroFirstStepSeconds = 0.5;
+    const gyroPulseWidthSeconds = 0.045;
+
+    double gyroPulse(double time, double center) {
+      final normalized = (time - center) / gyroPulseWidthSeconds;
+      return math.exp(-0.5 * normalized * normalized);
+    }
+
+    return [
+      for (var i = 0; i < sampleCount; i++)
+        sampleAt(
+          i,
+          projectedAcceleration:
+              0.06 +
+              0.1 *
+                  math.sin(
+                    2 *
+                        math.pi *
+                        i *
+                        samplePeriodSeconds /
+                        accelerationPeriodSeconds,
+                  ),
+          rotationRateZ: () {
+            final time = i * samplePeriodSeconds;
+            var magnitude = 0.02;
+            for (var step = 0; step < gyroStepCount; step++) {
+              final center =
+                  gyroFirstStepSeconds + step * gyroStepPeriodSeconds;
+              magnitude += 2.0 * gyroPulse(time, center);
+            }
+            return magnitude;
+          }(),
+        ),
+    ];
+  }
+
   ActivityPrediction predictionAt(int millisecondsAfterStart, int endIndex) {
     return ActivityPrediction(
       label: 'wlk',
@@ -713,6 +756,43 @@ void main() {
     expect(result.cadenceStepsPerMinute, closeTo(60 / 0.52, 5));
     expect(result.confidence, GaitCadenceConfidence.high);
   });
+
+  test(
+    "prefers a genuine step signal over the other channel's "
+    'search-boundary autocorrelation artifact',
+    () {
+      // Acceleration is a pure 1.05 s sine: its autocorrelation never peaks
+      // inside the searched lag range (0.29-1.0 s), so the strongest value
+      // found is at the range's longest lag, still rising -- the exact
+      // mechanism traced to a ~50% step undercount on real fast-paced
+      // recordings. Gyro carries the genuine 0.4 s (150 spm) step signal as an
+      //  interior local maximum. Confirmed via the Python mirror
+      // (ml/utils/gait_cadence_port.py) that without this tie-break, both
+      // channels reach "high" confidence with a periodicity gap under the
+      // 0.05 margin, so the prior rule fell through to its final default
+      // (prefer acceleration) and returned the sine's 16 crests instead of
+      // the gyro channel's 38 real steps.
+      final result = analyzeGaitCadenceSamples(
+        boundaryArtifactSamples(
+          sampleCount: 800,
+          accelerationPeriodSeconds: 1.05,
+          gyroStepCount: 38,
+          gyroStepPeriodSeconds: 0.4,
+        ),
+      );
+
+      expect(result.status, GaitCadenceStatus.computed);
+      expect(
+        result.stepCount,
+        38,
+        reason:
+            'period=${result.dominantPeriod}, '
+            'periodicity=${result.periodicity}, '
+            'cadence=${result.cadenceStepsPerMinute}',
+      );
+      expect(result.cadenceStepsPerMinute, closeTo(150, 3));
+    },
+  );
 
   test('lowers confidence when peak and period cadence disagree', () {
     final result = analyzeGaitCadenceSamples(

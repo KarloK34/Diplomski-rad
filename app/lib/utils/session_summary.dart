@@ -656,6 +656,7 @@ SessionQualitySummary computeSessionQualitySummary(
   Set<String> locomotionLabels = defaultLocomotionLabels,
   int minStableLocomotionWindows = defaultStableLocomotionMinWindows,
   int minGaitCandidateWindows = defaultGaitCandidateMinWindows,
+  int gaitSegmentGapToleranceWindows = defaultGaitSegmentGapToleranceWindows,
   Duration fallbackStepDuration = defaultPredictionStepDuration,
 }) {
   assert(
@@ -741,6 +742,7 @@ SessionQualitySummary computeSessionQualitySummary(
   final gaitSegments = extractGaitSegments(
     session,
     minWindows: minGaitCandidateWindows,
+    gapToleranceWindows: gaitSegmentGapToleranceWindows,
     fallbackStepDuration: fallbackStepDuration,
   );
   final gaitSignalSegments = extractGaitSignalSegments(
@@ -756,6 +758,7 @@ SessionQualitySummary computeSessionQualitySummary(
     session,
     labels: defaultLocomotionLabels,
     minWindows: minGaitCandidateWindows,
+    gapToleranceWindows: gaitSegmentGapToleranceWindows,
     fallbackStepDuration: fallbackStepDuration,
   );
   final cadenceSignalSegments = extractGaitSignalSegments(

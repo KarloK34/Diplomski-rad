@@ -332,6 +332,7 @@ _CadenceCandidate _analyzeCadenceSignal(
         status: GaitCadenceStatus.insufficientSignal,
         reason: tooFewCadencePeaksReason,
       ),
+      isBoundaryArtifact: false,
     );
   }
 
@@ -350,6 +351,7 @@ _CadenceCandidate _analyzeCadenceSignal(
         status: GaitCadenceStatus.insufficientSignal,
         reason: lowCadencePeriodicityReason,
       ),
+      isBoundaryArtifact: false,
     );
   }
   if (periodEstimate.periodicity < reportablePeriodicity) {
@@ -363,6 +365,7 @@ _CadenceCandidate _analyzeCadenceSignal(
         status: GaitCadenceStatus.insufficientSignal,
         reason: lowCadencePeriodicityReason,
       ),
+      isBoundaryArtifact: periodEstimate.isBoundaryArtifact,
     );
   }
 
@@ -405,6 +408,7 @@ _CadenceCandidate _analyzeCadenceSignal(
         confidence: GaitCadenceConfidence.low,
         confidenceReason: limitedCadenceEvidenceReason,
       ),
+      isBoundaryArtifact: periodEstimate.isBoundaryArtifact,
     );
   }
 
@@ -423,6 +427,7 @@ _CadenceCandidate _analyzeCadenceSignal(
         status: GaitCadenceStatus.invalidTimestamps,
         reason: invalidCadenceTimestampsReason,
       ),
+      isBoundaryArtifact: periodEstimate.isBoundaryArtifact,
     );
   }
 
@@ -459,6 +464,7 @@ _CadenceCandidate _analyzeCadenceSignal(
       confidence: confidenceAssessment.confidence,
       confidenceReason: confidenceAssessment.reason,
     ),
+    isBoundaryArtifact: periodEstimate.isBoundaryArtifact,
   );
 }
 
@@ -478,6 +484,17 @@ _CadenceCandidate _betterCadenceCandidate(
   _CadenceCandidate left,
   _CadenceCandidate right,
 ) {
+  if (left.isBoundaryArtifact != right.isBoundaryArtifact) {
+    // A still-rising boundary correlation means the search range may have
+    // truncated the true peak -- weaker evidence than a candidate whose
+    // period is an interior local maximum the search actually observed
+    // peaking, regardless of which raw correlation value is higher. Project
+    // heuristic, not from Wu and Urbanek (2023); see the doc comment on
+    // `_PeriodEstimate.isBoundaryArtifact` for the mechanism this responds
+    // to (a fast-paced-walking undercount traced to this exact tie-break).
+    return left.isBoundaryArtifact ? right : left;
+  }
+
   final leftResult = left.result;
   final rightResult = right.result;
   final byConfidence =
@@ -646,7 +663,8 @@ _PeriodEstimate? _estimateDominantPeriod(
     }
   }
   final maximumBoundary = correlations[maximumLag]!;
-  if (maximumBoundary > correlations[maximumLag - 1]!) {
+  final boundaryAdded = maximumBoundary > correlations[maximumLag - 1]!;
+  if (boundaryAdded) {
     localMaxima.add(MapEntry(maximumLag, maximumBoundary));
   }
 
@@ -679,6 +697,7 @@ _PeriodEstimate? _estimateDominantPeriod(
   return _PeriodEstimate(
     period: period,
     periodicity: bestCorrelation.clamp(0, 1).toDouble(),
+    isBoundaryArtifact: boundaryAdded && bestLag == maximumLag,
   );
 }
 
@@ -773,10 +792,15 @@ class _PeriodEstimate {
   const _PeriodEstimate({
     required this.period,
     required this.periodicity,
+    required this.isBoundaryArtifact,
   });
 
   final Duration period;
   final double periodicity;
+
+  /// Whether [period] was selected only because correlation was still
+  /// rising at the search range's longest lag (see [_estimateDominantPeriod]).
+  final bool isBoundaryArtifact;
 
   double get cadenceStepsPerMinute =>
       Duration.microsecondsPerMinute / period.inMicroseconds;
@@ -791,10 +815,17 @@ class _CadenceCandidate {
   const _CadenceCandidate({
     required this.signal,
     required this.result,
+    required this.isBoundaryArtifact,
   });
 
   final _CadenceSignal signal;
   final GaitCadenceResult result;
+
+  /// Mirrors [_PeriodEstimate.isBoundaryArtifact] for whichever period
+  /// estimate produced [result]; `false` when no period estimate was
+  /// reached at all (e.g. [GaitCadenceStatus.insufficientSignal] before
+  /// autocorrelation ran).
+  final bool isBoundaryArtifact;
 }
 
 class _ConfidenceAssessment {
