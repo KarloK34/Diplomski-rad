@@ -7,7 +7,7 @@ import 'package:gait_sense/widgets/indicators/prediction_ticker.dart';
 import 'package:gait_sense/widgets/indicators/session_limit_bar.dart';
 
 /// Live HAR readouts: recording status, elapsed time, session limit,
-/// prediction count, latency, and the current per-window prediction.
+/// prediction count, and the current per-window prediction.
 class RecordingStatusPanel extends StatelessWidget {
   /// Creates the panel from the current recording [status] and readouts.
   const RecordingStatusPanel({
@@ -15,8 +15,6 @@ class RecordingStatusPanel extends StatelessWidget {
     required this.elapsed,
     required this.maxSessionDuration,
     required this.predictionCount,
-    required this.latencyP50Ms,
-    required this.latencyP95Ms,
     required this.latest,
     super.key,
   });
@@ -33,12 +31,6 @@ class RecordingStatusPanel extends StatelessWidget {
 
   /// Number of predictions received so far.
   final int predictionCount;
-
-  /// Median inference latency over the rolling window, in milliseconds.
-  final int latencyP50Ms;
-
-  /// 95th-percentile inference latency over the rolling window, in ms.
-  final int latencyP95Ms;
 
   /// Most recent prediction, or null before the first arrives.
   final ActivityPrediction? latest;
@@ -64,11 +56,6 @@ class RecordingStatusPanel extends StatelessWidget {
           ],
           SizedBox(height: spacing.lg),
           Text('Predikcija: $predictionCount', style: textStyles.bodyLarge),
-          SizedBox(height: spacing.xxs),
-          Text(
-            'Latencija: p50 $latencyP50Ms ms · p95 $latencyP95Ms ms',
-            style: muted,
-          ),
           SizedBox(height: spacing.lg),
           PredictionTicker(latest: latest, style: muted),
         ],
@@ -82,12 +69,13 @@ class RecordingStatusPanel extends StatelessWidget {
         return 'Snimanje u tijeku';
       case RecordingStatus.saving:
         return 'Spremanje…';
-      case RecordingStatus.idle:
       case RecordingStatus.saved:
         return 'Zaustavljeno';
       // Not reached in practice — LiveHarContent renders a dedicated panel
-      // for these two statuses instead of RecordingStatusPanel. Handled here
-      // only so the switch stays exhaustive over RecordingStatus.
+      // for these three statuses instead of RecordingStatusPanel. Handled
+      // here only so the switch stays exhaustive over RecordingStatus.
+      case RecordingStatus.idle:
+        return 'Zaustavljeno';
       case RecordingStatus.preparing:
         return 'Priprema…';
       case RecordingStatus.unavailable:

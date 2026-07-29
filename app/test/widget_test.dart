@@ -120,7 +120,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Live HAR'), findsOneWidget);
-    expect(find.text('Zaustavljeno'), findsOneWidget);
+    expect(find.text('Spremni za snimanje'), findsOneWidget);
     expect(find.text('Start'), findsOneWidget);
   });
 

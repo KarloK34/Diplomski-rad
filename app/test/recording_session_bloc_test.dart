@@ -255,27 +255,20 @@ void main() {
     },
   );
 
-  test(
-    'appends each prediction and updates the rolling latency percentiles',
-    () async {
-      final bloc = buildBloc();
-      addTearDown(bloc.close);
+  test('appends each prediction and updates the prediction count', () async {
+    final bloc = buildBloc();
+    addTearDown(bloc.close);
 
-      await startRecording(bloc);
+    await startRecording(bloc);
 
-      controller
-        ..emit(prediction('wlk', latencyMs: 2))
-        ..emit(prediction('wlk', latencyMs: 10));
-      final state = await bloc.stream.firstWhere((s) => s.predictionCount == 2);
+    controller
+      ..emit(prediction('wlk', latencyMs: 2))
+      ..emit(prediction('wlk', latencyMs: 10));
+    final state = await bloc.stream.firstWhere((s) => s.predictionCount == 2);
 
-      expect(repository.count, 2);
-      expect(state.latest?.label, 'wlk');
-      // Nearest-rank over [2, 10]: p50 -> ceil(0.5*2)=1 -> index 0 -> 2;
-      // p95 -> ceil(0.95*2)=2 -> index 1 -> 10.
-      expect(state.latencyP50Ms, 2);
-      expect(state.latencyP95Ms, 10);
-    },
-  );
+    expect(repository.count, 2);
+    expect(state.latest?.label, 'wlk');
+  });
 
   test('appends raw IMU samples without changing prediction count', () async {
     final bloc = buildBloc();

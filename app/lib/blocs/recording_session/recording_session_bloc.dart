@@ -8,7 +8,6 @@ import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/har_model_info.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/repositories/session_log_repository.dart';
-import 'package:gait_sense/services/latency_tracker.dart';
 import 'package:gait_sense/services/recording_controller.dart';
 import 'package:gait_sense/services/sensor_readiness_probe.dart';
 import 'package:gait_sense/services/session_limit.dart';
@@ -73,7 +72,6 @@ class RecordingSessionBloc
   final Duration preparationDuration;
 
   late final SensorReadinessProbe _probe = SensorReadinessProbe(_controller);
-  final LatencyTracker _latencyTracker = LatencyTracker();
 
   StreamSubscription<ActivityPrediction>? _predictionSubscription;
   StreamSubscription<SensorSample>? _sampleSubscription;
@@ -173,7 +171,6 @@ class RecordingSessionBloc
     _countdownSettled = true;
     _controller.commitRecording();
     _startedAt = _now();
-    _latencyTracker.reset();
     _repository.startSession(startedAt: _startedAt, modelInfo: _modelInfo);
 
     await _predictionSubscription?.cancel();
@@ -285,16 +282,10 @@ class RecordingSessionBloc
     _repository.append(event.prediction);
     if (!isRecording) return;
 
-    final percentiles = _latencyTracker.add(
-      event.prediction.inferenceLatencyMs,
-    );
-
     emit(
       state.copyWith(
         predictionCount: state.predictionCount + 1,
         latest: event.prediction,
-        latencyP50Ms: percentiles.p50,
-        latencyP95Ms: percentiles.p95,
       ),
     );
   }

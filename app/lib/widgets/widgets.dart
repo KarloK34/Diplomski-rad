@@ -52,6 +52,7 @@ export 'layout/info_section.dart';
 export 'layout/metric_grid.dart';
 export 'layout/onboarding_step_view.dart';
 export 'layout/recording_countdown_panel.dart';
+export 'layout/recording_start_panel.dart';
 export 'layout/recording_status_panel.dart';
 export 'layout/screen_body.dart';
 export 'layout/screen_header.dart';

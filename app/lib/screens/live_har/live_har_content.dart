@@ -17,8 +17,8 @@ class LiveHarContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Scoped to status/countdown only: elapsed, predictionCount, latency and
-    // latest all change every tick during an active session and would
+    // Scoped to status/countdown only: elapsed, predictionCount and latest
+    // all change every tick during an active session and would
     // otherwise tear down and rebuild the AppBar/FAB shell on every one of
     // them. The frequently-changing readouts get their own BlocBuilder in
     // [_body] instead, so only that subtree pays for those rebuilds.
@@ -70,10 +70,10 @@ class LiveHarContent extends StatelessWidget {
   }
 
   // [state] here is only as fresh as the outer BlocBuilder's buildWhen
-  // allows — fine for the preparing countdown (already covered by it), but
-  // the idle/recording/saving/saved panel needs fields that change far more
-  // often, so it reads the bloc's live state through its own BlocBuilder
-  // instead of relying on this one.
+  // allows — fine for the preparing countdown and idle panel (already
+  // covered by it), but the recording/saving/saved panel needs fields that
+  // change far more often, so it reads the bloc's live state through its own
+  // BlocBuilder instead of relying on this one.
   Widget _body(RecordingSessionState state, RecordingSessionBloc bloc) {
     switch (state.status) {
       case RecordingStatus.preparing:
@@ -83,6 +83,7 @@ class LiveHarContent extends StatelessWidget {
       case RecordingStatus.unavailable:
         return const SensorUnavailablePanel();
       case RecordingStatus.idle:
+        return const RecordingStartPanel();
       case RecordingStatus.recording:
       case RecordingStatus.saving:
       case RecordingStatus.saved:
@@ -92,8 +93,6 @@ class LiveHarContent extends StatelessWidget {
             elapsed: liveState.elapsed,
             maxSessionDuration: bloc.maxSessionDuration,
             predictionCount: liveState.predictionCount,
-            latencyP50Ms: liveState.latencyP50Ms,
-            latencyP95Ms: liveState.latencyP95Ms,
             latest: liveState.latest,
           ),
         );

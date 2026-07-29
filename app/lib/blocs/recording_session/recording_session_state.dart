@@ -33,8 +33,6 @@ class RecordingSessionState extends Equatable {
     required this.status,
     required this.elapsed,
     required this.predictionCount,
-    required this.latencyP50Ms,
-    required this.latencyP95Ms,
     this.latest,
     this.finishedSession,
     this.stoppedByLimit = false,
@@ -46,8 +44,6 @@ class RecordingSessionState extends Equatable {
     : status = RecordingStatus.idle,
       elapsed = Duration.zero,
       predictionCount = 0,
-      latencyP50Ms = 0,
-      latencyP95Ms = 0,
       latest = null,
       finishedSession = null,
       stoppedByLimit = false,
@@ -64,12 +60,6 @@ class RecordingSessionState extends Equatable {
 
   /// The most recent prediction, or null before the first arrives.
   final ActivityPrediction? latest;
-
-  /// Median inference latency over the rolling window, in milliseconds.
-  final int latencyP50Ms;
-
-  /// 95th-percentile inference latency over the rolling window, in ms.
-  final int latencyP95Ms;
 
   /// The saved session, non-null exactly when [status] is
   /// [RecordingStatus.saved]; drives navigation to the summary screen.
@@ -102,8 +92,6 @@ class RecordingSessionState extends Equatable {
     Duration? elapsed,
     int? predictionCount,
     ActivityPrediction? latest,
-    int? latencyP50Ms,
-    int? latencyP95Ms,
     SessionLog? finishedSession,
     bool? stoppedByLimit,
     int? countdownSecondsRemaining,
@@ -112,8 +100,6 @@ class RecordingSessionState extends Equatable {
       status: status ?? this.status,
       elapsed: elapsed ?? this.elapsed,
       predictionCount: predictionCount ?? this.predictionCount,
-      latencyP50Ms: latencyP50Ms ?? this.latencyP50Ms,
-      latencyP95Ms: latencyP95Ms ?? this.latencyP95Ms,
       latest: latest ?? this.latest,
       finishedSession: finishedSession ?? this.finishedSession,
       stoppedByLimit: stoppedByLimit ?? this.stoppedByLimit,
@@ -128,8 +114,6 @@ class RecordingSessionState extends Equatable {
     elapsed,
     predictionCount,
     latest,
-    latencyP50Ms,
-    latencyP95Ms,
     finishedSession,
     stoppedByLimit,
     countdownSecondsRemaining,
