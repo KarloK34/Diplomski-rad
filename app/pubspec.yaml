@@ -59,11 +59,23 @@ dependencies:
 #    rather than going through UserProfileRepository/Firestore.
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
   integration_test:
     sdk: flutter
   very_good_analysis: ^10.2.0
+
+# flutter_launcher_icons: source images live in assets/icon/.
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#006565"
+  adaptive_icon_background: "#006565"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  adaptive_icon_foreground_inset: 0
 
 flutter:
   uses-material-design: true
