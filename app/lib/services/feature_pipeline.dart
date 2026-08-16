@@ -141,8 +141,11 @@ class FeaturePipeline {
     );
     if (meanDirNorm < _eps) {
       // No coherent direction in the block (sit/std): build a deterministic
-      // horizontal axis by projecting world-X onto the plane orthogonal to the
-      // block-mean gravity.
+      // horizontal axis by projecting the device-frame X axis onto the plane
+      // orthogonal to the block-mean gravity. This axis is fixed to the
+      // phone's case, not to the world or the body, so unlike the rest of
+      // this frame it is not invariant to the phone being rotated about the
+      // vertical inside the pocket.
       var meanGX = 0.0;
       var meanGY = 0.0;
       var meanGZ = 0.0;
@@ -340,17 +343,27 @@ class FeaturePipeline {
 
 /// Stateful, causal feature extractor for the live sensor stream.
 ///
-/// Maintains a trailing context buffer (default 250 samples / 5 s) for the
-/// walking-direction smoothing and emits a normalized [FeatureWindow] every
-/// [step] samples once at least [FeatureWindow.windowSize] samples are
-/// available. Unlike the parity-validated offline path, the smoothing here uses
-/// only past samples — a deliberate causal approximation, since live inference
-/// cannot see future samples.
+/// Maintains a trailing context buffer (default 250 + [FeatureWindow.windowSize]
+/// samples, i.e. 7.56 s) for the walking-direction smoothing and emits a
+/// normalized [FeatureWindow] every [step] samples once at least
+/// [FeatureWindow.windowSize] samples are available. Unlike the
+/// parity-validated offline path, the smoothing here uses only past samples
+/// — a deliberate causal approximation, since live inference cannot see
+/// future samples.
+///
+/// `contextSamples` must exceed the smoothing kernel length
+/// (`round(smoothSeconds * fsHz)`, 250 samples by default) or
+/// `_movingAverageSame` degenerates to a no-op (it returns the input
+/// unchanged whenever the buffer is not longer than the kernel), silently
+/// disabling the smoothing and collapsing `a_f_mag`/`a_s_mag` into a
+/// duplicate of `a_h` and a constant zero. The default below keeps the full
+/// 250-sample kernel and adds one window of headroom past it.
 class StreamingFeatureExtractor {
   /// Creates an extractor. `contextSamples` must be at least one full window
-  /// ([FeatureWindow.windowSize]).
+  /// ([FeatureWindow.windowSize]) *and* strictly greater than the smoothing
+  /// kernel length, or the walking-direction moving average never fires.
   StreamingFeatureExtractor({
-    this.contextSamples = 250,
+    this.contextSamples = 250 + FeatureWindow.windowSize,
     this.step = FeatureWindow.windowSize ~/ 2,
   }) : assert(
          contextSamples >= FeatureWindow.windowSize,

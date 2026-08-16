@@ -30,8 +30,11 @@ dependencies:
   vibration: ^3.2.0
 
 # Dependency notes:
-#  - sensors_plus 7.x exposes GravitySensorEvent, UserAccelerometerEvent and
-#    GyroscopeEvent — sufficient for the v2 feature pipeline (attitude unused).
+#  - sensors_plus 7.x exposes UserAccelerometerEvent and GyroscopeEvent, but
+#    no gravity stream on either platform; gravity is derived in-app as
+#    accelerometer minus its linear-acceleration component (see
+#    sensor_conversion.dart) — sufficient for the v2 feature pipeline
+#    (attitude unused).
 #  - tflite_flutter loads cnn_final.tflite ([1,128,8] -> [1,6]) on-device.
 #  - flutter_bloc + equatable: project default for state management.
 #  - flutter_foreground_task keeps the 50 Hz sampler alive with the screen off.
@@ -85,9 +88,3 @@ flutter:
     - assets/cnn_final.preproc.json
     - assets/icons/google_logo.svg
     - assets/illustrations/phone_pocket_placement.png
-    # Test-only: small (~310 KB) truncated parity fixtures, bundled so the
-    # on-device inference parity test (integration_test/) can read the expected
-    # Python TFLite outputs via rootBundle. 
-    # TODO: Strip these before any release build.
-    - test/fixtures/parity/wlk_7_sub_5.infer.json
-    - test/fixtures/parity/sit_5_sub_5.infer.json
