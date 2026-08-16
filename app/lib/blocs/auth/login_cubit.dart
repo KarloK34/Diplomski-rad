@@ -19,25 +19,18 @@ class LoginCubit extends Cubit<AuthFormState> {
 
   /// Updates the email field as the user types
   void emailChanged(String email) {
-    emit(AuthFormState(email: email, password: state.password));
+    emit(state.editing(email: email));
   }
 
   /// Updates the password field as the user types
   void passwordChanged(String password) {
-    emit(AuthFormState(email: state.email, password: password));
+    emit(state.editing(password: password));
   }
 
   /// Submits the current email/password.
   Future<void> submitted() async {
     if (state.status == AuthFormStatus.submitting) return;
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: state.password,
-        status: AuthFormStatus.submitting,
-        submitMethod: AuthSubmitMethod.email,
-      ),
-    );
+    emit(state.toSubmitting(AuthSubmitMethod.email));
     try {
       await _authRepository.signInWithEmail(
         email: state.email,
@@ -56,14 +49,7 @@ class LoginCubit extends Cubit<AuthFormState> {
   /// Starts the interactive Google sign-in flow.
   Future<void> googleSignInRequested() async {
     if (state.status == AuthFormStatus.submitting) return;
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: state.password,
-        status: AuthFormStatus.submitting,
-        submitMethod: AuthSubmitMethod.google,
-      ),
-    );
+    emit(state.toSubmitting(AuthSubmitMethod.google));
     try {
       await _authRepository.signInWithGoogle();
       if (isClosed) return;
@@ -71,7 +57,7 @@ class LoginCubit extends Cubit<AuthFormState> {
     } on GoogleSignInException catch (error) {
       if (isClosed) return;
       if (error.code == GoogleSignInExceptionCode.canceled) {
-        emit(AuthFormState(email: state.email, password: state.password));
+        emit(state.editing());
         return;
       }
       emit(_failure('Prijava putem Google računa nije uspjela.'));
@@ -87,14 +73,7 @@ class LoginCubit extends Cubit<AuthFormState> {
   /// Sends a password-reset email to [email].
   Future<void> sendPasswordResetEmail(String email) async {
     if (state.status == AuthFormStatus.submitting) return;
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: state.password,
-        status: AuthFormStatus.submitting,
-        submitMethod: AuthSubmitMethod.passwordReset,
-      ),
-    );
+    emit(state.toSubmitting(AuthSubmitMethod.passwordReset));
     try {
       await _authRepository.sendPasswordResetEmail(email);
       if (isClosed) return;
@@ -105,12 +84,5 @@ class LoginCubit extends Cubit<AuthFormState> {
     }
   }
 
-  AuthFormState _failure(String message) {
-    return AuthFormState(
-      email: state.email,
-      password: state.password,
-      status: AuthFormStatus.failure,
-      errorMessage: message,
-    );
-  }
+  AuthFormState _failure(String message) => state.toFailure(message);
 }

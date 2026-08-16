@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/models/feature_window.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/feature_pipeline.dart';
+import 'package:gait_sense/services/streaming_feature_extractor.dart';
 
 /// Numerical-parity tests for the **causal live path**
 /// ([StreamingFeatureExtractor]) against the Python reference

@@ -119,7 +119,7 @@ def main() -> None:
     import tensorflow as tf
     import keras
     from keras import callbacks, losses
-    from sklearn.metrics import confusion_matrix, f1_score
+    from sklearn.metrics import f1_score
     from sklearn.model_selection import GroupKFold
     from sklearn.utils.class_weight import compute_class_weight
     from utils.orientation_invariant_features import (

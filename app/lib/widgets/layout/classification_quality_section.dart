@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gait_sense/utils/croatian_format.dart';
 import 'package:gait_sense/utils/gait_metric_info.dart';
 import 'package:gait_sense/utils/gait_quality_format.dart';
 import 'package:gait_sense/utils/session_metric_info.dart';

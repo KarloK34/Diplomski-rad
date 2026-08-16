@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:gait_sense/models/activity_prediction.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/models/session_log.dart';
+import 'package:gait_sense/repositories/session_buffer.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Decodes one draft's raw JSON into a [SessionLog], or the parse error's
@@ -51,24 +52,19 @@ class SessionLogRepository {
            documentsDirectory ?? getApplicationDocumentsDirectory;
 
   final Future<Directory> Function() _documentsDirectory;
-
-  DateTime? _startedAt;
-  String? _deviceId;
-  Map<String, dynamic> _modelInfo = const {};
-  final List<ActivityPrediction> _predictions = [];
-  final List<SensorSample> _rawSamples = [];
+  final SessionBuffer _buffer = SessionBuffer();
 
   /// Number of predictions buffered in the active session.
-  int get count => _predictions.length;
+  int get count => _buffer.count;
 
   /// Number of raw IMU samples buffered in the active session.
-  int get sampleCount => _rawSamples.length;
+  int get sampleCount => _buffer.sampleCount;
 
   /// Unmodifiable view of the predictions buffered so far.
-  List<ActivityPrediction> get predictions => List.unmodifiable(_predictions);
+  List<ActivityPrediction> get predictions => _buffer.predictions;
 
   /// Unmodifiable view of the raw IMU samples buffered so far.
-  List<SensorSample> get rawSamples => List.unmodifiable(_rawSamples);
+  List<SensorSample> get rawSamples => _buffer.rawSamples;
 
   /// Begins a new session, clearing any buffered predictions.
   void startSession({
@@ -76,21 +72,21 @@ class SessionLogRepository {
     required Map<String, dynamic> modelInfo,
     String? deviceId,
   }) {
-    _startedAt = startedAt;
-    _modelInfo = modelInfo;
-    _deviceId = deviceId;
-    _predictions.clear();
-    _rawSamples.clear();
+    _buffer.start(
+      startedAt: startedAt,
+      modelInfo: modelInfo,
+      deviceId: deviceId,
+    );
   }
 
   /// Appends one prediction to the active session.
   void append(ActivityPrediction prediction) {
-    _predictions.add(prediction);
+    _buffer.append(prediction);
   }
 
   /// Appends one raw IMU sample to the active session.
   void appendSample(SensorSample sample) {
-    _rawSamples.add(sample);
+    _buffer.appendSample(sample);
   }
 
   /// Finalizes the session from the buffered predictions and raw samples and
@@ -101,20 +97,7 @@ class SessionLogRepository {
   ///
   /// Throws [StateError] if called before [startSession].
   SessionLog finish({required DateTime stoppedAt}) {
-    final startedAt = _startedAt;
-    if (startedAt == null) {
-      throw StateError('finish called before startSession');
-    }
-
-    final session = SessionLog(
-      startedAt: startedAt,
-      stoppedAt: stoppedAt,
-      deviceId: _deviceId,
-      modelInfo: _modelInfo,
-      rawSamples: List.of(_rawSamples),
-      predictions: List.of(_predictions),
-    );
-    return session;
+    return _buffer.finish(stoppedAt: stoppedAt);
   }
 
   /// Writes [session] to `<documents>/sessions/session_<timestamp>.json` and

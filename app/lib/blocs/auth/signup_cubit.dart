@@ -20,65 +20,28 @@ class SignupCubit extends Cubit<AuthFormState> {
 
   /// Updates the email field as the user types
   void emailChanged(String email) {
-    emit(
-      AuthFormState(
-        email: email,
-        password: state.password,
-        firstName: state.firstName,
-        lastName: state.lastName,
-      ),
-    );
+    emit(state.editing(email: email));
   }
 
   /// Updates the password field as the user types
   void passwordChanged(String password) {
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: password,
-        firstName: state.firstName,
-        lastName: state.lastName,
-      ),
-    );
+    emit(state.editing(password: password));
   }
 
   /// Updates the first name field as the user types
   void firstNameChanged(String firstName) {
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: state.password,
-        firstName: firstName,
-        lastName: state.lastName,
-      ),
-    );
+    emit(state.editing(firstName: firstName));
   }
 
   /// Updates the last name field as the user types
   void lastNameChanged(String lastName) {
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: state.password,
-        firstName: state.firstName,
-        lastName: lastName,
-      ),
-    );
+    emit(state.editing(lastName: lastName));
   }
 
   /// Submits the current email/password/name to create a new account.
   Future<void> submitted() async {
     if (state.status == AuthFormStatus.submitting) return;
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: state.password,
-        firstName: state.firstName,
-        lastName: state.lastName,
-        status: AuthFormStatus.submitting,
-        submitMethod: AuthSubmitMethod.email,
-      ),
-    );
+    emit(state.toSubmitting(AuthSubmitMethod.email));
     try {
       await _authRepository.signUpWithEmail(
         email: state.email,
@@ -101,16 +64,7 @@ class SignupCubit extends Cubit<AuthFormState> {
   /// automatically on first sign-in.
   Future<void> googleSignInRequested() async {
     if (state.status == AuthFormStatus.submitting) return;
-    emit(
-      AuthFormState(
-        email: state.email,
-        password: state.password,
-        firstName: state.firstName,
-        lastName: state.lastName,
-        status: AuthFormStatus.submitting,
-        submitMethod: AuthSubmitMethod.google,
-      ),
-    );
+    emit(state.toSubmitting(AuthSubmitMethod.google));
     try {
       await _authRepository.signInWithGoogle();
       if (isClosed) return;
@@ -118,14 +72,7 @@ class SignupCubit extends Cubit<AuthFormState> {
     } on GoogleSignInException catch (error) {
       if (isClosed) return;
       if (error.code == GoogleSignInExceptionCode.canceled) {
-        emit(
-          AuthFormState(
-            email: state.email,
-            password: state.password,
-            firstName: state.firstName,
-            lastName: state.lastName,
-          ),
-        );
+        emit(state.editing());
         return;
       }
       emit(_failure('Registracija putem Google računa nije uspjela.'));
@@ -138,14 +85,5 @@ class SignupCubit extends Cubit<AuthFormState> {
     }
   }
 
-  AuthFormState _failure(String message) {
-    return AuthFormState(
-      email: state.email,
-      password: state.password,
-      firstName: state.firstName,
-      lastName: state.lastName,
-      status: AuthFormStatus.failure,
-      errorMessage: message,
-    );
-  }
+  AuthFormState _failure(String message) => state.toFailure(message);
 }

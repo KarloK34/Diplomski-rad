@@ -5,10 +5,10 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:gait_sense/models/feature_window.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
 import 'package:gait_sense/services/activity_smoother.dart';
-import 'package:gait_sense/services/feature_pipeline.dart';
 import 'package:gait_sense/services/har_inference.dart';
 import 'package:gait_sense/services/sensor_service.dart';
 import 'package:gait_sense/services/session_limit.dart';
+import 'package:gait_sense/services/streaming_feature_extractor.dart';
 
 /// Entry point of the foreground-service isolate.
 ///
@@ -60,8 +60,8 @@ class _HarTaskHandler extends TaskHandler {
   StreamSubscription<SensorSample>? _sampleSubscription;
 
   // HarInference owns a single IsolateInterpreter; concurrent predict() calls
-  // would race on it. Window arrivals are serialized through this future chain
-  // (mirrors PredictionBloc's sequential transformer).
+  // would race on it. Window arrivals are serialized through this future
+  // chain (a sequential-transformer-style queue) to avoid that race.
   Future<void> _inferenceChain = Future<void>.value();
 
   Timer? _limitTimer;

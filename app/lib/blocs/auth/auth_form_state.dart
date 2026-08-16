@@ -86,6 +86,49 @@ class AuthFormState extends Equatable {
     );
   }
 
+  /// Returns an editable-again state carrying over only the given fields —
+  /// [status], [submitMethod], and [errorMessage] reset to their defaults, so
+  /// editing a field after a failed submission clears the old error.
+  AuthFormState editing({
+    String? email,
+    String? password,
+    String? firstName,
+    String? lastName,
+  }) {
+    return AuthFormState(
+      email: email ?? this.email,
+      password: password ?? this.password,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+    );
+  }
+
+  /// Returns a state with the fields preserved and [status] set to
+  /// [AuthFormStatus.submitting] for [method].
+  AuthFormState toSubmitting(AuthSubmitMethod method) {
+    return AuthFormState(
+      email: email,
+      password: password,
+      firstName: firstName,
+      lastName: lastName,
+      status: AuthFormStatus.submitting,
+      submitMethod: method,
+    );
+  }
+
+  /// Returns a state with the fields preserved and [status] set to
+  /// [AuthFormStatus.failure] with [message].
+  AuthFormState toFailure(String message) {
+    return AuthFormState(
+      email: email,
+      password: password,
+      firstName: firstName,
+      lastName: lastName,
+      status: AuthFormStatus.failure,
+      errorMessage: message,
+    );
+  }
+
   @override
   List<Object?> get props => [
     email,

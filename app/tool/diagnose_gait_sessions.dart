@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:gait_sense/models/session_log.dart';
 import 'package:gait_sense/screens/session_summary/session_summary_computation.dart';
 import 'package:gait_sense/utils/activity_labels.dart';
+import 'package:gait_sense/utils/croatian_format.dart';
 import 'package:gait_sense/utils/gait_cadence.dart';
 import 'package:gait_sense/utils/gait_quality_format.dart';
 import 'package:gait_sense/utils/gait_segments.dart';

@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gait_sense/models/feature_window.dart';
 import 'package:gait_sense/models/sensor_sample.dart';
-import 'package:gait_sense/services/feature_pipeline.dart';
+import 'package:gait_sense/services/streaming_feature_extractor.dart';
 
 /// Behavioural tests for the causal live path. These do NOT check numerical
 /// parity (that is the offline path, `feature_pipeline_test.dart`); they verify

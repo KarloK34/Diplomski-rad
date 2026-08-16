@@ -17,8 +17,9 @@ import 'package:gait_sense/utils/sensor_conversion.dart';
 /// Two consumers share the same math:
 ///  - the parity test feeds a *whole session* as one block (matching the
 ///    non-causal, whole-session smoothing the model was trained on);
-///  - [StreamingFeatureExtractor] feeds a trailing context buffer, which is a
-///    deliberate causal approximation (future samples are unavailable live).
+///  - `StreamingFeatureExtractor` (streaming_feature_extractor.dart) feeds a
+///    trailing context buffer, which is a deliberate causal approximation
+///    (future samples are unavailable live).
 class FeaturePipeline {
   const FeaturePipeline._();
 
@@ -45,7 +46,21 @@ class FeaturePipeline {
     final n = block.length;
     if (n == 0) return const [];
 
-    // Per-sample magnitudes, gravity unit vector, vertical/horizontal split.
+    final kin = _computeKinematics(block);
+    final jerkV = _computeVerticalJerk(kin.aV, fsHz);
+    final smoothSamples = max(1, (smoothSeconds * fsHz).round());
+    final fHat = _computeWalkingDirection(
+      kin.uaHorizontal,
+      kin.gHat,
+      smoothSamples,
+    );
+    return _assembleFeatures(kin, jerkV, fHat);
+  }
+
+  /// Per-sample magnitudes, gravity unit vector, and vertical/horizontal
+  /// split of user acceleration.
+  static _Kinematics _computeKinematics(List<SensorSample> block) {
+    final n = block.length;
     final accMag = List<double>.filled(n, 0);
     final gyroMag = List<double>.filled(n, 0);
     final gHat = List<List<double>>.generate(
@@ -97,8 +112,22 @@ class FeaturePipeline {
       );
     }
 
-    // Vertical jerk: discrete derivative of a_v, first sample replicated from
-    // the second so the output length is preserved.
+    return (
+      ua: ua,
+      omega: omega,
+      accMag: accMag,
+      gyroMag: gyroMag,
+      gHat: gHat,
+      aV: aV,
+      aH: aH,
+      uaHorizontal: uaHorizontal,
+    );
+  }
+
+  /// Vertical jerk: discrete derivative of a_v, first sample replicated from
+  /// the second so the output length is preserved.
+  static List<double> _computeVerticalJerk(List<double> aV, double fsHz) {
+    final n = aV.length;
     final jerkV = List<double>.filled(n, 0);
     if (n >= 2) {
       final dt = 1.0 / fsHz;
@@ -107,9 +136,17 @@ class FeaturePipeline {
       }
       jerkV[0] = jerkV[1];
     }
+    return jerkV;
+  }
 
-    // Walking-direction body frame.
-    final smoothSamples = max(1, (smoothSeconds * fsHz).round());
+  /// Smoothed walking-direction unit vector `f_hat` per sample, before
+  /// re-orthogonalisation against gravity.
+  static List<List<double>> _computeWalkingDirection(
+    List<List<double>> uaHorizontal,
+    List<List<double>> gHat,
+    int smoothSamples,
+  ) {
+    final n = uaHorizontal.length;
     final uaHorizontalSmooth = _movingAverageSame(uaHorizontal, smoothSamples);
 
     final smoothNorm = List<double>.filled(n, 0);
@@ -140,39 +177,9 @@ class FeaturePipeline {
       (_) => List<double>.filled(3, 0),
     );
     if (meanDirNorm < _eps) {
-      // No coherent direction in the block (sit/std): build a deterministic
-      // horizontal axis by projecting the device-frame X axis onto the plane
-      // orthogonal to the block-mean gravity. This axis is fixed to the
-      // phone's case, not to the world or the body, so unlike the rest of
-      // this frame it is not invariant to the phone being rotated about the
-      // vertical inside the pocket.
-      var meanGX = 0.0;
-      var meanGY = 0.0;
-      var meanGZ = 0.0;
-      for (var t = 0; t < n; t++) {
-        meanGX += gHat[t][0];
-        meanGY += gHat[t][1];
-        meanGZ += gHat[t][2];
-      }
-      meanGX /= n;
-      meanGY /= n;
-      meanGZ /= n;
-      final meanGNorm = _norm3(meanGX, meanGY, meanGZ);
-      meanGX /= meanGNorm;
-      meanGY /= meanGNorm;
-      meanGZ /= meanGNorm;
-
-      var fDefault = _projectOntoPlane([1, 0, 0], [meanGX, meanGY, meanGZ]);
-      if (_norm3(fDefault[0], fDefault[1], fDefault[2]) < _eps) {
-        fDefault = _projectOntoPlane([0, 1, 0], [meanGX, meanGY, meanGZ]);
-      }
-      final projNorm = _norm3(fDefault[0], fDefault[1], fDefault[2]);
-      final denom = max(projNorm, _eps);
-      fDefault = [
-        fDefault[0] / denom,
-        fDefault[1] / denom,
-        fDefault[2] / denom,
-      ];
+      // No coherent direction in the block (sit/std): fall back to a
+      // deterministic horizontal axis fixed to the phone's case.
+      final fDefault = _fallbackHorizontalAxis(gHat);
       for (var t = 0; t < n; t++) {
         fHat[t][0] = fDefault[0];
         fHat[t][1] = fDefault[1];
@@ -196,42 +203,84 @@ class FeaturePipeline {
         }
       }
     }
+    return fHat;
+  }
 
+  /// Deterministic horizontal axis for blocks with no coherent walking
+  /// direction: the device-frame X axis projected onto the plane orthogonal
+  /// to the block-mean gravity. This axis is fixed to the phone's case, not
+  /// to the world or the body, so unlike the rest of this frame it is not
+  /// invariant to the phone being rotated about the vertical inside the
+  /// pocket.
+  static List<double> _fallbackHorizontalAxis(List<List<double>> gHat) {
+    final n = gHat.length;
+    var meanGX = 0.0;
+    var meanGY = 0.0;
+    var meanGZ = 0.0;
+    for (var t = 0; t < n; t++) {
+      meanGX += gHat[t][0];
+      meanGY += gHat[t][1];
+      meanGZ += gHat[t][2];
+    }
+    meanGX /= n;
+    meanGY /= n;
+    meanGZ /= n;
+    final meanGNorm = _norm3(meanGX, meanGY, meanGZ);
+    meanGX /= meanGNorm;
+    meanGY /= meanGNorm;
+    meanGZ /= meanGNorm;
+
+    var fDefault = _projectOntoPlane([1, 0, 0], [meanGX, meanGY, meanGZ]);
+    if (_norm3(fDefault[0], fDefault[1], fDefault[2]) < _eps) {
+      fDefault = _projectOntoPlane([0, 1, 0], [meanGX, meanGY, meanGZ]);
+    }
+    final projNorm = _norm3(fDefault[0], fDefault[1], fDefault[2]);
+    final denom = max(projNorm, _eps);
+    return [fDefault[0] / denom, fDefault[1] / denom, fDefault[2] / denom];
+  }
+
+  /// Re-orthogonalises `f_hat` against `g_hat`, builds the right-handed body
+  /// frame, and projects each channel into [FeatureWindow.channelOrder] order.
+  static List<List<double>> _assembleFeatures(
+    _Kinematics kin,
+    List<double> jerkV,
+    List<List<double>> fHat,
+  ) {
+    final n = kin.aV.length;
     final features = List<List<double>>.generate(
       n,
       (_) => List<double>.filled(FeatureWindow.channelCount, 0),
     );
     for (var t = 0; t < n; t++) {
+      final gHat = kin.gHat[t];
       // Re-orthogonalise f_hat against g_hat so it lies in the
       // horizontal plane, then build the right-handed body frame.
       final dot =
-          fHat[t][0] * gHat[t][0] +
-          fHat[t][1] * gHat[t][1] +
-          fHat[t][2] * gHat[t][2];
-      var fx = fHat[t][0] - dot * gHat[t][0];
-      var fy = fHat[t][1] - dot * gHat[t][1];
-      var fz = fHat[t][2] - dot * gHat[t][2];
+          fHat[t][0] * gHat[0] + fHat[t][1] * gHat[1] + fHat[t][2] * gHat[2];
+      var fx = fHat[t][0] - dot * gHat[0];
+      var fy = fHat[t][1] - dot * gHat[1];
+      var fz = fHat[t][2] - dot * gHat[2];
       final fNorm = max(_norm3(fx, fy, fz), _eps);
       fx /= fNorm;
       fy /= fNorm;
       fz /= fNorm;
 
       // s_hat = f_hat × g_hat.
-      final sx = fy * gHat[t][2] - fz * gHat[t][1];
-      final sy = fz * gHat[t][0] - fx * gHat[t][2];
-      final sz = fx * gHat[t][1] - fy * gHat[t][0];
+      final sx = fy * gHat[2] - fz * gHat[1];
+      final sy = fz * gHat[0] - fx * gHat[2];
+      final sz = fx * gHat[1] - fy * gHat[0];
 
-      final aF = ua[t][0] * fx + ua[t][1] * fy + ua[t][2] * fz;
-      final aS = ua[t][0] * sx + ua[t][1] * sy + ua[t][2] * sz;
+      final ua = kin.ua[t];
+      final omega = kin.omega[t];
+      final aF = ua[0] * fx + ua[1] * fy + ua[2] * fz;
+      final aS = ua[0] * sx + ua[1] * sy + ua[2] * sz;
       final gyroV =
-          omega[t][0] * gHat[t][0] +
-          omega[t][1] * gHat[t][1] +
-          omega[t][2] * gHat[t][2];
+          omega[0] * gHat[0] + omega[1] * gHat[1] + omega[2] * gHat[2];
 
-      features[t][0] = accMag[t];
-      features[t][1] = gyroMag[t];
-      features[t][2] = aV[t];
-      features[t][3] = aH[t];
+      features[t][0] = kin.accMag[t];
+      features[t][1] = kin.gyroMag[t];
+      features[t][2] = kin.aV[t];
+      features[t][3] = kin.aH[t];
       features[t][4] = jerkV[t];
       // v2 sign-invariant magnitudes for the forward/lateral axes; gyro_v stays
       // signed.
@@ -274,7 +323,7 @@ class FeaturePipeline {
   /// Slices a feature matrix into normalized windows of length [windowSize]
   /// with step [step], matching `sliding_windows` (st in 0..N-w step s).
   /// Convenience for offline use (parity test); the live path uses
-  /// [StreamingFeatureExtractor].
+  /// `StreamingFeatureExtractor`.
   static List<List<List<double>>> windows(
     List<List<double>> features, {
     int windowSize = FeatureWindow.windowSize,
@@ -341,74 +390,16 @@ class FeaturePipeline {
       sqrt(x * x + y * y + z * z);
 }
 
-/// Stateful, causal feature extractor for the live sensor stream.
-///
-/// Maintains a trailing context buffer (default 250 + [FeatureWindow.windowSize]
-/// samples, i.e. 7.56 s) for the walking-direction smoothing and emits a
-/// normalized [FeatureWindow] every [step] samples once at least
-/// [FeatureWindow.windowSize] samples are available. Unlike the
-/// parity-validated offline path, the smoothing here uses only past samples
-/// — a deliberate causal approximation, since live inference cannot see
-/// future samples.
-///
-/// `contextSamples` must exceed the smoothing kernel length
-/// (`round(smoothSeconds * fsHz)`, 250 samples by default) or
-/// `_movingAverageSame` degenerates to a no-op (it returns the input
-/// unchanged whenever the buffer is not longer than the kernel), silently
-/// disabling the smoothing and collapsing `a_f_mag`/`a_s_mag` into a
-/// duplicate of `a_h` and a constant zero. The default below keeps the full
-/// 250-sample kernel and adds one window of headroom past it.
-class StreamingFeatureExtractor {
-  /// Creates an extractor. `contextSamples` must be at least one full window
-  /// ([FeatureWindow.windowSize]) *and* strictly greater than the smoothing
-  /// kernel length, or the walking-direction moving average never fires.
-  StreamingFeatureExtractor({
-    this.contextSamples = 250 + FeatureWindow.windowSize,
-    this.step = FeatureWindow.windowSize ~/ 2,
-  }) : assert(
-         contextSamples >= FeatureWindow.windowSize,
-         'context must hold at least one full window',
-       );
-
-  /// Trailing buffer length used for walking-direction smoothing.
-  final int contextSamples;
-
-  /// Samples between emitted windows (64 ⇒ a new window every 1.28 s).
-  final int step;
-
-  final List<SensorSample> _buffer = [];
-  int _totalSamples = 0;
-  int _samplesSinceLastWindow = 0;
-
-  /// Feeds one sample. Returns a normalized [FeatureWindow] when a new window
-  /// boundary is reached, otherwise null.
-  FeatureWindow? add(SensorSample sample) {
-    _buffer.add(sample);
-    _totalSamples++;
-    if (_buffer.length > contextSamples) {
-      _buffer.removeAt(0);
-    }
-    _samplesSinceLastWindow++;
-
-    if (_buffer.length < FeatureWindow.windowSize) return null;
-    if (_samplesSinceLastWindow < step) return null;
-    _samplesSinceLastWindow = 0;
-
-    // Compute features over the whole trailing context, then keep the most
-    // recent full window for the per-window normalization.
-    final features = FeaturePipeline.computeBlockFeatures(_buffer);
-    final window = features.sublist(features.length - FeatureWindow.windowSize);
-    return FeatureWindow(
-      data: FeaturePipeline.normalizeWindow(window),
-      endTimestamp: sample.timestamp,
-      endSampleIndex: _totalSamples - 1,
-    );
-  }
-
-  /// Clears all buffered state for a fresh session.
-  void reset() {
-    _buffer.clear();
-    _totalSamples = 0;
-    _samplesSinceLastWindow = 0;
-  }
-}
+/// Intermediate per-sample kinematic quantities shared between the
+/// walking-direction and final-frame-projection stages of
+/// [FeaturePipeline.computeBlockFeatures].
+typedef _Kinematics = ({
+  List<List<double>> ua,
+  List<List<double>> omega,
+  List<double> accMag,
+  List<double> gyroMag,
+  List<List<double>> gHat,
+  List<double> aV,
+  List<double> aH,
+  List<List<double>> uaHorizontal,
+});
