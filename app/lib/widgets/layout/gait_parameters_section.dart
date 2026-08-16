@@ -74,13 +74,13 @@ class GaitParametersSection extends StatelessWidget {
         if (summary.gaitCadence.temporalParameters case final temporal?) ...[
           LabeledValueRow(
             label: 'Prosječno vrijeme koraka',
-            value: formatDurationSecondsHr(temporal.meanStepTime),
+            value: formatStepTimeSecondsHr(temporal.meanStepTime),
             info: meanStepTimeMetricInfo,
           ),
           if (temporal.meanStrideTime case final strideTime?)
             LabeledValueRow(
-              label: 'Prosječno vrijeme iskoraka',
-              value: formatDurationSecondsHr(strideTime),
+              label: 'Prosječno vrijeme ciklusa hoda',
+              value: formatStepTimeSecondsHr(strideTime),
               info: meanStrideTimeMetricInfo,
             ),
         ],

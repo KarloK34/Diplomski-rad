@@ -40,3 +40,10 @@ String formatDurationSecondsHr(Duration duration) {
   final seconds = duration.inMilliseconds / 1000;
   return '${seconds.toStringAsFixed(1).replaceAll('.', ',')} s';
 }
+
+/// Formats a step/stride time with two decimals — one decimal collapses
+/// genuinely different sessions onto the same displayed value.
+String formatStepTimeSecondsHr(Duration duration) {
+  final seconds = duration.inMicroseconds / Duration.microsecondsPerSecond;
+  return '${seconds.toStringAsFixed(2).replaceAll('.', ',')} s';
+}

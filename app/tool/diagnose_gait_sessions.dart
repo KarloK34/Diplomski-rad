@@ -189,7 +189,7 @@ void _printAppSummary(
     stdout
       ..writeln(
         '  Prosječno vrijeme koraka (eksperimentalno): '
-        '${formatDurationSecondsHr(temporal.meanStepTime)}',
+        '${formatStepTimeSecondsHr(temporal.meanStepTime)}',
       )
       ..writeln(
         '  Varijabilnost vremena koraka (eksperimentalno): '
@@ -197,13 +197,13 @@ void _printAppSummary(
       );
     if (temporal.meanStrideTime case final strideTime?) {
       stdout.writeln(
-        '  Prosječno vrijeme iskoraka (eksperimentalno): '
-        '${formatDurationSecondsHr(strideTime)}',
+        '  Prosječno vrijeme ciklusa hoda (eksperimentalno): '
+        '${formatStepTimeSecondsHr(strideTime)}',
       );
     }
     if (temporal.strideTimeCoefficientOfVariation case final strideCv?) {
       stdout.writeln(
-        '  Varijabilnost vremena iskoraka (eksperimentalno): '
+        '  Varijabilnost vremena ciklusa hoda (eksperimentalno): '
         '${formatPercentHr(strideCv)}',
       );
     }

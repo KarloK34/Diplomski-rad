@@ -81,10 +81,10 @@ const MetricInfo meanStepTimeMetricInfo = MetricInfo(
 
 /// Explanation for mean stride time.
 const MetricInfo meanStrideTimeMetricInfo = MetricInfo(
-  title: 'Prosječno vrijeme iskoraka',
+  title: 'Prosječno vrijeme ciklusa hoda',
   description:
-      'Prosječno vrijeme jednog potpunog cikla hoda — od koraka jedne noge '
-      'do sljedećeg koraka iste noge.',
+      'Prosječno vrijeme jednog potpunog ciklusa hoda — od koraka jedne '
+      'noge do sljedećeg koraka iste noge.',
 );
 
 /// Explanation for signal regularity.

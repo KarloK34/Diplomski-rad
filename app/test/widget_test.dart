@@ -218,7 +218,7 @@ void main() {
     expect(find.text('Prosječno vrijeme koraka'), findsOneWidget);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
     await tester.pumpAndSettle();
-    expect(find.text('Prosječno vrijeme iskoraka'), findsOneWidget);
+    expect(find.text('Prosječno vrijeme ciklusa hoda'), findsOneWidget);
     expect(find.text('Regularnost signala'), findsOneWidget);
     expect(find.text('Razlog'), findsNothing);
   });
@@ -294,7 +294,7 @@ void main() {
       expect(find.text('Varijabilnost kadence'), findsNothing);
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
       await tester.pumpAndSettle();
-      expect(find.text('Varijabilnost vremena iskoraka'), findsNothing);
+      expect(find.text('Varijabilnost vremena ciklusa hoda'), findsNothing);
     },
   );
 
