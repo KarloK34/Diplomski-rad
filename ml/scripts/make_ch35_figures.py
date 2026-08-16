@@ -97,7 +97,7 @@ AL, AR = 70.5, 98.0       # desni blok (analiza hoda)
 
 g = []
 g.append(c.box(L, 76, R - L, 22,
-      "zasloni i widgeti, navigacija, prikaz sažetka sesije\ni kretanja parametara hoda kroz vrijeme",
+      "zasloni i elementi sučelja, navigacija, prikaz sažetka\nsesije i kretanja parametara hoda kroz vrijeme",
       title="Sloj prikaza"))
 small = [c.box(AL, 76, AR - AL, 22,
       "izdvajanje odsječaka,\notkrivanje događaja hoda,\nizračun parametara hoda",
@@ -160,6 +160,8 @@ c.box(LEFT, y_log, ROW_W, h_log,
       "Zapis sesije na uređaju: predikcije i sirovi uzorci",
       fs=11.0, fill="#FFFFFF", r=1.5)
 c.arrow(LEFT + 5 * (w1 + gap) + w1 / 2, y1, LEFT + 5 * (w1 + gap) + w1 / 2, y_log + h_log)
+# sirovi uzorci ulaze u zapis sesije neovisno o predikcijama
+c.arrow(LEFT + 1 * (w1 + gap) + w1 / 2, y1, LEFT + 1 * (w1 + gap) + w1 / 2, y_log + h_log)
 
 c.frame(1.0, 13.0, 98.0, 32.0,
         "Nakon zaustavljanja sesije: radni izolat", just="r")
