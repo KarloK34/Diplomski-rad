@@ -73,12 +73,21 @@ class LiveHarListener extends StatelessWidget {
   }
 
   /// Firm double-buzz so session start is unmistakable through a pocket. The
-  /// pattern is [wait, buzz, pause, buzz] in ms; omitting intensities lets the
-  /// motor run at its default amplitude, so no amplitude-control device is
-  /// required. Guarded by [Vibration.hasVibrator] to no-op on emulators and
-  /// motorless devices.
+  /// pattern is [wait, buzz, pause, buzz] in ms. Guarded by
+  /// [Vibration.hasVibrator] to no-op on emulators and motorless devices.
+  ///
+  /// `intensities` is passed explicitly (rather than omitted) because the
+  /// `vibration` package's iOS implementation (3.2.0) only alternates
+  /// silence/amplitude per pattern index when an intensities array is given;
+  /// left to its own default, it treats every index — including the leading
+  /// 0 ms "wait" — as full amplitude, which builds a zero-duration
+  /// CHHapticEvent and makes CoreHaptics reject the whole pattern
+  /// (CHHapticErrorCode -4823, invalidEventDuration).
   Future<void> _confirmStarted() async {
     if (!await Vibration.hasVibrator()) return;
-    await Vibration.vibrate(pattern: const [0, 400, 150, 400]);
+    await Vibration.vibrate(
+      pattern: const [0, 400, 150, 400],
+      intensities: const [0, 255, 0, 255],
+    );
   }
 }
