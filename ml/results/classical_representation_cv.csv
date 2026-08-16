@@ -1,0 +1,6 @@
+Reprezentacija,rep_key,Model,CV_mean,CV_std,CV_folds,s_nagibom
+12 sirovih kanala,raw12,SVC-RBF (podesen),0.9341730870781934,0.0317156782990968,0.8785 0.9421 0.9684 0.9235 0.9583,True
+6 kanala neovisnih o orijentaciji,oinv6,LinearSVC (podesen),0.913559020764529,0.0494470828315163,0.8176 0.9313 0.9507 0.9498 0.9185,True
+"8 kanala tjelesnog sustava (v1, predznaceni)",wf1_8,SVC-RBF (podesen),0.9242244126330224,0.0358245203192183,0.8726 0.9347 0.9678 0.9525 0.8935,True
+"8 kanala tjelesnog sustava (v2, konacni)",wf2_8,SVC-RBF (podesen),0.9284875038593224,0.0312677078631575,0.8962 0.9370 0.9703 0.9501 0.8889,True
+"8 kanala tjelesnog sustava (v2, konacni)",wf2_8,SVC-RBF (podesen) bez nagiba,0.9038353952754384,0.0217220899370368,0.9038 0.9166 0.9339 0.8962 0.8687,False

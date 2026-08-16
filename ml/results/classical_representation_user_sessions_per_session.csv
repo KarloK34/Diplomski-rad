@@ -1,0 +1,73 @@
+rep_key,Model,session,n_windows,n_core_windows,core_wlk_frac,majority,s_nagibom
+wf1_8,SVC-RBF (podesen),session_2026-06-18T18-13-27.169816.json,9,5,0.4,ups,True
+wf1_8,SVC-RBF (podesen),session_2026-06-24T17-04-30.009717.json,23,20,0.5,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-06-24T17-21-43.893895.json,14,11,0.7272727272727273,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-06-24T17-24-13.644396.json,38,35,0.7428571428571429,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-06-24T17-25-30.213239.json,39,36,0.7222222222222222,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-06-27T19-25-21.678232.json,13,10,0.4,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-06-27T19-46-36.461282.json,27,23,0.5217391304347826,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-06-30T08-17-07.003351.json,87,83,0.963855421686747,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-17T12-37-55.776619.json,68,65,0.953846153846154,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-17T12-40-55.813790.json,71,68,0.8235294117647058,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-17T14-39-47.700239.json,35,32,0.8125,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-17T14-41-25.520883.json,28,24,0.4583333333333333,ups,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-31-33.468306.json,15,11,0.7272727272727273,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-35-18.292706.json,15,11,0.2727272727272727,ups,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-36-54.077805.json,15,12,0.6666666666666666,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-38-05.221747.json,18,14,0.2857142857142857,ups,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-39-41.350716.json,12,9,0.7777777777777778,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-40-42.415662.json,17,13,0.8461538461538461,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-41-56.856929.json,19,15,0.6666666666666666,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-43-38.229716.json,20,17,0.1764705882352941,ups,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-44-47.287767.json,21,17,0.7058823529411765,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-45-55.828701.json,20,16,0.125,ups,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-47-19.853524.json,16,13,0.7692307692307693,wlk,True
+wf1_8,SVC-RBF (podesen),session_2026-07-22T14-48-38.490388.json,22,19,0.631578947368421,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-06-18T18-13-27.169816.json,9,5,0.6,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-06-24T17-04-30.009717.json,23,20,0.6,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-06-24T17-21-43.893895.json,14,11,0.8181818181818182,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-06-24T17-24-13.644396.json,38,35,0.9142857142857144,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-06-24T17-25-30.213239.json,39,36,0.9444444444444444,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-06-27T19-25-21.678232.json,13,10,0.4,ups,True
+wf2_8,SVC-RBF (podesen),session_2026-06-27T19-46-36.461282.json,27,23,0.7391304347826086,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-06-30T08-17-07.003351.json,87,83,0.963855421686747,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-17T12-37-55.776619.json,68,65,0.9692307692307692,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-17T12-40-55.813790.json,71,68,0.9117647058823528,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-17T14-39-47.700239.json,35,32,0.84375,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-17T14-41-25.520883.json,28,24,0.6666666666666666,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-31-33.468306.json,15,11,0.7272727272727273,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-35-18.292706.json,15,11,0.6363636363636364,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-36-54.077805.json,15,12,0.75,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-38-05.221747.json,18,14,0.5714285714285714,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-39-41.350716.json,12,9,0.8888888888888888,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-40-42.415662.json,17,13,0.9230769230769232,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-41-56.856929.json,19,15,0.8,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-43-38.229716.json,20,17,0.3529411764705882,ups,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-44-47.287767.json,21,17,0.7647058823529411,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-45-55.828701.json,20,16,0.375,ups,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-47-19.853524.json,16,13,0.8461538461538461,wlk,True
+wf2_8,SVC-RBF (podesen),session_2026-07-22T14-48-38.490388.json,22,19,0.7894736842105263,wlk,True
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-18T18-13-27.169816.json,9,5,0.4,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-24T17-04-30.009717.json,23,20,0.6,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-24T17-21-43.893895.json,14,11,1.0,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-24T17-24-13.644396.json,38,35,0.8857142857142857,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-24T17-25-30.213239.json,39,36,0.9444444444444444,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-27T19-25-21.678232.json,13,10,0.4,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-27T19-46-36.461282.json,27,23,0.6521739130434783,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-06-30T08-17-07.003351.json,87,83,0.9879518072289156,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-17T12-37-55.776619.json,68,65,0.9846153846153848,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-17T12-40-55.813790.json,71,68,0.9411764705882352,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-17T14-39-47.700239.json,35,32,0.9375,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-17T14-41-25.520883.json,28,24,0.6666666666666666,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-31-33.468306.json,15,11,0.8181818181818182,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-35-18.292706.json,15,11,0.7272727272727273,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-36-54.077805.json,15,12,1.0,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-38-05.221747.json,18,14,0.6428571428571429,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-39-41.350716.json,12,9,0.8888888888888888,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-40-42.415662.json,17,13,0.9230769230769232,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-41-56.856929.json,19,15,0.9333333333333332,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-43-38.229716.json,20,17,0.5882352941176471,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-44-47.287767.json,21,17,0.8823529411764706,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-45-55.828701.json,20,16,0.6875,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-47-19.853524.json,16,13,0.8461538461538461,wlk,False
+wf2_8,SVC-RBF (podesen) bez nagiba,session_2026-07-22T14-48-38.490388.json,22,19,0.8421052631578947,wlk,False

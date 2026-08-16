@@ -1,22 +1,23 @@
 """Export numerical-parity fixtures for the Dart walking-frame v2 pipeline.
 
-For each chosen MotionSense session this writes a JSON file containing:
-  - ``input``   : the raw 9-channel IMU samples used by the v2 feature math
-                  (gravity, userAcceleration, rotationRate), already in iOS
-                  CoreMotion convention because MotionSense is iOS-native.
-  - ``windows`` : the expected normalized 8-channel windows (shape
-                  [n_windows, 128, 8]) the model is fed at inference time.
+Writes 3 fixture families per MotionSense session, sharing the same raw
+9-channel ``input`` block (gravity, userAcceleration, rotationRate, iOS
+CoreMotion convention):
 
-The expected windows are produced by the *exact* training-time pipeline:
-``compute_walking_frame_features_v2`` over the whole session block, then
-``sliding_windows`` (w=128, s=64), then ``normalize_dyn`` (instance Z-score,
-population std, +1e-8) -- the functions used in notebooks 11 and 14. The Dart
-implementation in ``app/lib/services/feature_pipeline.dart`` must reproduce
-these windows to < 1e-4 max absolute error.
+1. ``<name>.json`` -- offline path (whole-session
+   ``compute_walking_frame_features_v2`` -> ``sliding_windows`` ->
+   ``normalize_dyn``), validated by ``test/feature_pipeline_test.dart``.
+2. ``<name>.streaming.json`` -- causal on-device path via
+   ``utils.streaming_offline_compare.streaming_windows``, validated by
+   ``test/feature_pipeline_streaming_parity_test.dart``.
+3. ``<name>.infer.json`` -- offline windows plus expected TFLite output,
+   for ``integration_test/``.
 
-Walking (``wlk_7/sub_5``) exercises the normal walking-direction branch; the
-static session (``sit_5/sub_5``) exercises the ``mean_dir_norm < 1e-3``
-fallback branch of the walking-frame computation.
+``app/lib/services/feature_pipeline.dart`` must reproduce every fixture to
+< 1e-4 max absolute error. Walking (``wlk_7/sub_5``) exercises the normal
+branch; static (``sit_5/sub_5``) covers the low-amplitude ``smooth_norm <
+eps`` guard but not the rarer block-level ``mean_dir_norm < 1e-3`` fallback
+(``sit_5/sub_23`` would cover that if a dedicated fixture is ever added).
 
 Run from the repo root:
     python ml/scripts/export_parity_fixtures.py
@@ -39,6 +40,7 @@ from utils.orientation_invariant_features import (
     WALKING_FRAME_V2_COLS,
     compute_walking_frame_features_v2,
 )
+from utils.streaming_offline_compare import CONTEXT_SAMPLES, streaming_windows
 
 # Class order matches cnn_final.preproc.json.class_labels.
 ACT_LABELS = ["dws", "ups", "wlk", "jog", "std", "sit"]
@@ -65,6 +67,13 @@ _TFLITE_MODEL = os.path.join(_REPO_ROOT, "models", "cnn_final.tflite")
 # 768 samples (15.36 s @ 50 Hz) -> (768-128)//64 + 1 = 11 windows per session,
 # enough to exercise both branches and give a meaningful per-window agreement.
 _INFER_MAX_SAMPLES = 768
+
+# Truncation for the streaming fixtures. Lossless here (unlike the offline
+# path): the causal path never looks back further than CONTEXT_SAMPLES, so a
+# prefix produces bit-identical windows to the full session. 768 samples
+# covers the whole buffer ramp (128 -> 192 -> 256 -> 320 -> 378) plus six
+# steady-state windows -- the range where a regression would show first.
+_STREAMING_MAX_SAMPLES = 768
 
 
 def sliding_windows(
@@ -122,6 +131,47 @@ def build_fixture(act: str, trial: int, sub: int) -> dict:
         },
         "input": raw[RAW_INPUT_COLS].to_numpy().tolist(),
         "windows": windows_norm.astype(float).tolist(),
+    }
+
+
+def build_streaming_fixture(act: str, trial: int, sub: int) -> dict:
+    """Fixture for the causal live path (`StreamingFeatureExtractor`).
+
+    Delegates to ``utils.streaming_offline_compare.streaming_windows``, the
+    same causal replay used by ``streaming_vs_offline_in_the_wild.py`` and
+    ``streaming_vs_offline_user_sessions.py``, so feeding the Dart extractor
+    the same ``input`` sample by sample must reproduce ``windows`` and
+    ``end_sample_indices`` exactly. Normalizes in float64 (matching the live
+    Dart path) rather than float32 as the offline fixture does; the 1e-4
+    tolerance covers the difference either way.
+    """
+    csv_path = os.path.join(_DATA_DIR, f"{act}_{trial}", f"sub_{sub}.csv")
+    raw = (
+        pd.read_csv(csv_path)
+        .drop(columns=["Unnamed: 0"])
+        .iloc[:_STREAMING_MAX_SAMPLES]
+        .reset_index(drop=True)
+    )
+
+    windows, ends = streaming_windows(raw)
+
+    return {
+        "meta": {
+            "source": f"{act}_{trial}/sub_{sub}.csv",
+            "path": "streaming",
+            "input_channel_order": RAW_INPUT_COLS,
+            "output_channel_order": WALKING_FRAME_V2_COLS,
+            "window_size": 128,
+            "step": 64,
+            "fs_hz": 50.0,
+            "smooth_seconds": 5.0,
+            "context_samples": int(CONTEXT_SAMPLES),
+            "truncated_to_samples": int(len(raw)),
+            "n_windows": int(windows.shape[0]),
+        },
+        "input": raw[RAW_INPUT_COLS].to_numpy().tolist(),
+        "windows": windows.astype(float).tolist(),
+        "end_sample_indices": [int(i) for i in ends],
     }
 
 
@@ -205,6 +255,23 @@ def main() -> None:
         print(
             f"wrote {out_path}  "
             f"({meta['n_samples']} samples -> {meta['n_windows']} windows)"
+        )
+
+    # Causal (on-device) path fixtures. Written before the inference fixtures so
+    # that a missing TensorFlow install still leaves both TF-free families on
+    # disk.
+    for act, trial, sub in targets:
+        fixture = build_streaming_fixture(act, trial, sub)
+        out_path = os.path.join(
+            _OUT_DIR, f"{act}_{trial}_sub_{sub}.streaming.json"
+        )
+        with open(out_path, "w", encoding="utf-8") as fh:
+            json.dump(fixture, fh)
+        meta = fixture["meta"]
+        print(
+            f"wrote {out_path}  "
+            f"({meta['truncated_to_samples']} samples -> {meta['n_windows']} "
+            f"windows; context {meta['context_samples']} samples)"
         )
 
     # On-device inference fixtures (truncated; carry expected TFLite outputs).

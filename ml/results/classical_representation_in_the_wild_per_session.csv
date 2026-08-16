@@ -1,0 +1,61 @@
+rep_key,Model,session,orientation,true,correct_frac,majority,n_windows,s_nagibom
+raw12,SVC-RBF (podesen),dws,natural,dws,0.0,ups,4,True
+raw12,SVC-RBF (podesen),ups,natural,ups,1.0,ups,5,True
+raw12,SVC-RBF (podesen),hod,natural,wlk,0.0,ups,9,True
+raw12,SVC-RBF (podesen),hod2,natural,wlk,0.6666666666666666,wlk,3,True
+raw12,SVC-RBF (podesen),hodanje,natural,wlk,0.2307692307692307,ups,13,True
+raw12,SVC-RBF (podesen),hodanje2,natural,wlk,0.0,ups,13,True
+raw12,SVC-RBF (podesen),hodanje3,natural,wlk,0.4285714285714285,wlk,35,True
+raw12,SVC-RBF (podesen),jog,natural,jog,1.0,jog,7,True
+raw12,SVC-RBF (podesen),ED,screen-toward-thigh + upside-down,wlk,0.5454545454545454,wlk,33,True
+raw12,SVC-RBF (podesen),EG,screen-toward-thigh + upright,wlk,0.0,ups,43,True
+raw12,SVC-RBF (podesen),KD,camera-toward-thigh + upside-down,wlk,0.0,ups,36,True
+raw12,SVC-RBF (podesen),KG,camera-toward-thigh + upright,wlk,0.6153846153846154,wlk,39,True
+oinv6,LinearSVC (podesen),dws,natural,dws,0.0,ups,4,True
+oinv6,LinearSVC (podesen),ups,natural,ups,1.0,ups,5,True
+oinv6,LinearSVC (podesen),hod,natural,wlk,0.1111111111111111,ups,9,True
+oinv6,LinearSVC (podesen),hod2,natural,wlk,1.0,wlk,3,True
+oinv6,LinearSVC (podesen),hodanje,natural,wlk,0.6153846153846154,wlk,13,True
+oinv6,LinearSVC (podesen),hodanje2,natural,wlk,0.0,ups,13,True
+oinv6,LinearSVC (podesen),hodanje3,natural,wlk,0.5142857142857142,wlk,35,True
+oinv6,LinearSVC (podesen),jog,natural,jog,1.0,jog,7,True
+oinv6,LinearSVC (podesen),ED,screen-toward-thigh + upside-down,wlk,0.7575757575757576,wlk,33,True
+oinv6,LinearSVC (podesen),EG,screen-toward-thigh + upright,wlk,0.0,ups,43,True
+oinv6,LinearSVC (podesen),KD,camera-toward-thigh + upside-down,wlk,0.0833333333333333,ups,36,True
+oinv6,LinearSVC (podesen),KG,camera-toward-thigh + upright,wlk,0.7435897435897436,wlk,39,True
+wf1_8,SVC-RBF (podesen),dws,natural,dws,0.0,ups,4,True
+wf1_8,SVC-RBF (podesen),ups,natural,ups,1.0,ups,5,True
+wf1_8,SVC-RBF (podesen),hod,natural,wlk,0.0,ups,9,True
+wf1_8,SVC-RBF (podesen),hod2,natural,wlk,0.6666666666666666,wlk,3,True
+wf1_8,SVC-RBF (podesen),hodanje,natural,wlk,0.5384615384615384,wlk,13,True
+wf1_8,SVC-RBF (podesen),hodanje2,natural,wlk,0.0,ups,13,True
+wf1_8,SVC-RBF (podesen),hodanje3,natural,wlk,0.3428571428571428,dws,35,True
+wf1_8,SVC-RBF (podesen),jog,natural,jog,1.0,jog,7,True
+wf1_8,SVC-RBF (podesen),ED,screen-toward-thigh + upside-down,wlk,0.7575757575757576,wlk,33,True
+wf1_8,SVC-RBF (podesen),EG,screen-toward-thigh + upright,wlk,0.3720930232558139,ups,43,True
+wf1_8,SVC-RBF (podesen),KD,camera-toward-thigh + upside-down,wlk,0.6388888888888888,wlk,36,True
+wf1_8,SVC-RBF (podesen),KG,camera-toward-thigh + upright,wlk,0.6923076923076923,wlk,39,True
+wf2_8,SVC-RBF (podesen),dws,natural,dws,0.0,ups,4,True
+wf2_8,SVC-RBF (podesen),ups,natural,ups,1.0,ups,5,True
+wf2_8,SVC-RBF (podesen),hod,natural,wlk,0.4444444444444444,wlk,9,True
+wf2_8,SVC-RBF (podesen),hod2,natural,wlk,0.6666666666666666,wlk,3,True
+wf2_8,SVC-RBF (podesen),hodanje,natural,wlk,0.6153846153846154,wlk,13,True
+wf2_8,SVC-RBF (podesen),hodanje2,natural,wlk,0.0769230769230769,ups,13,True
+wf2_8,SVC-RBF (podesen),hodanje3,natural,wlk,0.3714285714285714,dws,35,True
+wf2_8,SVC-RBF (podesen),jog,natural,jog,1.0,jog,7,True
+wf2_8,SVC-RBF (podesen),ED,screen-toward-thigh + upside-down,wlk,0.7272727272727273,wlk,33,True
+wf2_8,SVC-RBF (podesen),EG,screen-toward-thigh + upright,wlk,0.3023255813953488,ups,43,True
+wf2_8,SVC-RBF (podesen),KD,camera-toward-thigh + upside-down,wlk,0.6111111111111112,wlk,36,True
+wf2_8,SVC-RBF (podesen),KG,camera-toward-thigh + upright,wlk,0.717948717948718,wlk,39,True
+wf2_8,SVC-RBF (podesen) bez nagiba,dws,natural,dws,0.5,dws,4,False
+wf2_8,SVC-RBF (podesen) bez nagiba,ups,natural,ups,1.0,ups,5,False
+wf2_8,SVC-RBF (podesen) bez nagiba,hod,natural,wlk,0.5555555555555556,wlk,9,False
+wf2_8,SVC-RBF (podesen) bez nagiba,hod2,natural,wlk,0.6666666666666666,wlk,3,False
+wf2_8,SVC-RBF (podesen) bez nagiba,hodanje,natural,wlk,0.6153846153846154,wlk,13,False
+wf2_8,SVC-RBF (podesen) bez nagiba,hodanje2,natural,wlk,0.3076923076923077,ups,13,False
+wf2_8,SVC-RBF (podesen) bez nagiba,hodanje3,natural,wlk,0.4,dws,35,False
+wf2_8,SVC-RBF (podesen) bez nagiba,jog,natural,jog,1.0,jog,7,False
+wf2_8,SVC-RBF (podesen) bez nagiba,ED,screen-toward-thigh + upside-down,wlk,0.7575757575757576,wlk,33,False
+wf2_8,SVC-RBF (podesen) bez nagiba,EG,screen-toward-thigh + upright,wlk,0.4651162790697674,wlk,43,False
+wf2_8,SVC-RBF (podesen) bez nagiba,KD,camera-toward-thigh + upside-down,wlk,0.6388888888888888,wlk,36,False
+wf2_8,SVC-RBF (podesen) bez nagiba,KG,camera-toward-thigh + upright,wlk,0.6923076923076923,wlk,39,False

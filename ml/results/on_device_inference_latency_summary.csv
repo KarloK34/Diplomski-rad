@@ -1,0 +1,4 @@
+subset,n,mean_ms,median_ms,p95_ms,p99_ms,max_ms,min_ms,budget_ms,frac_within_budget
+all predictions,857,3.4352392065344226,3.0,6.0,9.43999999999994,40,0,1280.0,1.0
+steady state (first of session excluded),828,3.251207729468599,3.0,6.0,8.0,12,0,1280.0,1.0
+first prediction of each session (warm-up),29,8.689655172413794,4.0,36.8,39.44,40,1,1280.0,1.0

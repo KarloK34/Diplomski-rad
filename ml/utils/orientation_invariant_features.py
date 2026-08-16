@@ -1,12 +1,10 @@
 """Orientation-invariant channel derivations for IMU windows.
 
-The raw MotionSense channels (``userAcceleration.{x,y,z}``,
-``rotationRate.{x,y,z}``, ``gravity.{x,y,z}``, ``attitude.{roll,pitch,yaw}``)
-are defined in the phone-body frame. Their distributions change when the
-phone is rotated inside a pocket, which is the main source of cross-device /
-cross-orientation degradation observed in this project. Replacing the raw
-axes with quantities that are invariant (or partially invariant) to rotation
-of the phone is a standard preprocessing step for in-the-wild HAR.
+The raw MotionSense channels are defined in the phone-body frame, and their
+distributions shift when the phone rotates inside a pocket -- the main
+source of cross-orientation degradation observed in this project. Replacing
+raw axes with rotation-invariant quantities is standard preprocessing for
+in-the-wild HAR.
 
 References
 ----------
@@ -24,10 +22,14 @@ Mizell, D. (2003). Using gravity to estimate accelerometer orientation.
 Computers (ISWC '03)*, 252-253. https://doi.org/10.1109/ISWC.2003.1241424
 (Original source for the vertical/horizontal decomposition used here.)
 
-Lara, O. D., & Labrador, M. A. (2013). A survey on human activity
-recognition using wearable sensors. *IEEE Communications Surveys &
-Tutorials*, 15(3), 1192-1209. https://doi.org/10.1109/SURV.2012.110112.00192
-(Jerk as a discriminator for ambulation phases.)
+Escamilla-Nunez, R., Aguilar, L., Ng, G., Gouda, A., & Andrysek, J. (2020).
+Derivative Based Gait Event Detection Algorithm Using Unfiltered
+Accelerometer Signals. *42nd Annual International Conference of the IEEE
+Engineering in Medicine & Biology Society (EMBC)*, 4487-4490.
+https://doi.org/10.1109/EMBC44109.2020.9176085
+(Derivative-of-acceleration gait-event detection, there on a foot-mounted
+sensor; jerk_v here is a project-introduced channel validated empirically,
+not derived from this source.)
 
 PMC10346883 -- Reducing the Impact of Sensor Orientation Variability in
 RF-based Gesture Recognition. https://pmc.ncbi.nlm.nih.gov/articles/PMC10346883/
@@ -76,13 +78,19 @@ WALKING_FRAME_COLS: list[str] = [
     "gyro_v",
 ]
 
-# Extension: sign-invariant walking frame. 
-# Resolves the 180-degree pocket-orientation sign ambiguity in 
-# ``a_f`` / ``a_s``: a rotation of the phone by pi about gravity 
-# flips the smoothed forward direction f_hat -> -f_hat, which propagates to 
-# a_f -> -a_f and a_s -> -a_s. The magnitude form is invariant. 
-# ``gyro_v`` is left signed because its sign depends only on the gravity-axis convention, 
-# which is fixed once the input is in iOS CoreMotion format.
+# Extension: sign-invariant walking frame.
+# ``a_f`` / ``a_s`` in v1 are signed, but the ambiguity isn't from device
+# rotation: rotating the phone transforms ua and f_hat together, so their
+# projections are already rotation-invariant (confirmed numerically under
+# synthetic rotations including 180 degrees about gravity, see
+# ml/scripts/orientation_rotation_invariance_test.py). The real ambiguity is
+# empirical: the smoothed horizontal residual is a low-frequency direction
+# estimate (mean norm ~0.17 g vs ~0.52 g instantaneous), not a fixed heading,
+# so its polarity relative to the gait cycle isn't repeatable across
+# recordings -- corr(a_f, a_v) is positive in only 43 of 72 combinations at
+# walking. Taking magnitudes removes that per-recording polarity.
+# ``gyro_v`` stays signed: its sign depends only on the gravity-axis
+# convention, fixed once input is in iOS CoreMotion format.
 WALKING_FRAME_V2_COLS: list[str] = [
     "acc_mag",
     "gyro_mag",
@@ -227,15 +235,18 @@ def _walking_frame_block(
     if mean_dir_norm < eps:
         # No coherent direction in the whole block (sit/std). Build a
         # deterministic horizontal axis orthogonal to the mean gravity by
-        # projecting world-X onto the horizontal plane.
+        # projecting the device-frame X axis onto the horizontal plane. This
+        # axis is fixed to the phone's case, not to the world or the body, so
+        # unlike the rest of this frame it is not invariant to the phone
+        # being rotated about the vertical inside the pocket.
         mean_g = g_hat.mean(axis=0)
         mean_g = mean_g / np.linalg.norm(mean_g)
-        world_x = np.array([1.0, 0.0, 0.0])
-        proj = world_x - (world_x @ mean_g) * mean_g
+        device_x = np.array([1.0, 0.0, 0.0])
+        proj = device_x - (device_x @ mean_g) * mean_g
         proj_norm = np.linalg.norm(proj)
         if proj_norm < eps:
-            world_y = np.array([0.0, 1.0, 0.0])
-            proj = world_y - (world_y @ mean_g) * mean_g
+            device_y = np.array([0.0, 1.0, 0.0])
+            proj = device_y - (device_y @ mean_g) * mean_g
             proj_norm = np.linalg.norm(proj)
         f_default = proj / max(proj_norm, eps)
         f_hat = np.broadcast_to(f_default, ua.shape).copy()
@@ -292,11 +303,11 @@ def compute_walking_frame_features_v2(
     """Sign-invariant walking-frame features.
 
     Identical to :func:`compute_walking_frame_features` but returns the
-    *magnitude* of the lateral / forward body-frame projections,
-    ``a_f_mag = |a_f|`` and ``a_s_mag = |a_s|``. This resolves the
-    180-degree pocket-orientation sign ambiguity of the v1 signed
-    projections (rotating the phone by pi about gravity flips both
-    ``f_hat`` and ``s_hat``, which flips ``a_f`` and ``a_s``).
+    *magnitude* of ``a_f``/``a_s``. This resolves an artefact of f_hat being
+    a low-frequency direction estimate whose polarity isn't repeatable across
+    recordings -- not a rotation effect, since the signed projections are
+    already rotation-invariant (see the ``WALKING_FRAME_V2_COLS`` comment
+    above for the numeric evidence).
     """
     # Reuse the v1 computation, then take magnitudes on the two ambiguous
     # channels.

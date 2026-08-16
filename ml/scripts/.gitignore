@@ -1,0 +1,11 @@
+__pycache__/
+
+# One-off diagnostic scripts referenced only from local docs/ (not committed)
+activity_smoother_ablation.py
+cadence_cross_signal_fix_validation.py
+cadence_fix_candidates_validation.py
+cadence_period_diagnostics.py
+cadence_stationarity_check.py
+orientation_rotation_invariance_test.py
+peak_threshold_sensitivity_test.py
+walking_speed_bias_diagnosis.py

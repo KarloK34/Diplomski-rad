@@ -1,0 +1,4 @@
+Reprezentacija,rep_key,Model,weighted_core_wlk_frac,unweighted_core_wlk_frac,n_sessions,n_core_windows,cnn_offline_reference,s_nagibom
+"8 kanala tjelesnog sustava (v1, predznaceni)",wf1_8,SVC-RBF (podesen),0.7132987910189983,0.6115540601738633,24,579,0.765,True
+"8 kanala tjelesnog sustava (v2, konacni)",wf2_8,SVC-RBF (podesen),0.8186528497409327,0.7415256379741572,24,579,0.765,True
+"8 kanala tjelesnog sustava (v2, konacni)",wf2_8,SVC-RBF (podesen) bez nagiba,0.8635578583765112,0.7991750479382543,24,579,0.765,False

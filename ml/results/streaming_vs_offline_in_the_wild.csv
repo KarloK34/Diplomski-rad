@@ -1,0 +1,13 @@
+session,orientation,true,n_windows,offline_correct_frac,streaming_correct_frac,offline_streaming_agreement,offline_majority,streaming_majority
+dws,natural,dws,4,1.0,1.0,1.0,dws,dws
+ups,natural,ups,5,1.0,1.0,1.0,ups,ups
+hod,natural,wlk,9,0.0,0.0,1.0,ups,ups
+hod2,natural,wlk,3,1.0,1.0,1.0,wlk,wlk
+hodanje,natural,wlk,13,0.6153846153846154,0.6153846153846154,1.0,wlk,wlk
+hodanje2,natural,wlk,13,0.0,0.0,1.0,ups,ups
+hodanje3,natural,wlk,35,0.6285714285714286,0.6285714285714286,1.0,wlk,wlk
+jog,natural,jog,7,1.0,1.0,1.0,jog,jog
+ED,screen-toward-thigh + upside-down,wlk,33,1.0,0.9090909090909091,0.9090909090909091,wlk,wlk
+EG,screen-toward-thigh + upright,wlk,43,0.7906976744186046,0.7674418604651163,0.9534883720930233,wlk,wlk
+KD,camera-toward-thigh + upside-down,wlk,36,0.8055555555555556,0.7777777777777778,0.9722222222222222,wlk,wlk
+KG,camera-toward-thigh + upright,wlk,39,0.8461538461538461,0.8205128205128205,0.9743589743589743,wlk,wlk

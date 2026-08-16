@@ -1,0 +1,7 @@
+# Raw output of the one-off diagnostic scripts ignored in ml/scripts/.gitignore
+activity_smoother_ablation_in_the_wild.csv
+activity_smoother_ablation_user_sessions.csv
+cadence_cross_signal_fix_validation.csv
+cadence_fix_candidates_validation.csv
+cadence_period_diagnostics.csv
+cadence_stationarity_check.csv

@@ -1,0 +1,6 @@
+Reprezentacija,rep_key,Model,window_acc,session_acc,n_sessions,n_windows,s_nagibom
+12 sirovih kanala,raw12,SVC-RBF (podesen),0.3083333333333333,0.5,12,240,True
+6 kanala neovisnih o orijentaciji,oinv6,LinearSVC (podesen),0.4125,0.5833333333333334,12,240,True
+"8 kanala tjelesnog sustava (v1, predznaceni)",wf1_8,SVC-RBF (podesen),0.5166666666666667,0.5833333333333334,12,240,True
+"8 kanala tjelesnog sustava (v2, konacni)",wf2_8,SVC-RBF (podesen),0.5291666666666667,0.6666666666666666,12,240,True
+"8 kanala tjelesnog sustava (v2, konacni)",wf2_8,SVC-RBF (podesen) bez nagiba,0.5916666666666667,0.8333333333333334,12,240,False
