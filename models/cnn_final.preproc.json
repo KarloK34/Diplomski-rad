@@ -49,7 +49,7 @@
     "motionsense_cv_5fold": "0.9183 \u00b1 0.0419",
     "android_window_acc": 0.7417,
     "android_session_acc": 0.8333,
-    "tflite_size_kb": 131.1796875,
+    "tflite_size_kb": 129.6953125,
     "keras_vs_tflite_agreement": 0.9977022058823529
   }
 }
